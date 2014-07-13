@@ -1,0 +1,7 @@
+/debug
+/release
+/Makefile
+/*.Debug
+/*.Release
+/out
+/*.pro.user
