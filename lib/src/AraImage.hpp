@@ -97,21 +97,39 @@ class AraImage{
 		void initFromDump( std::vector<DumpPlane> dumps );
 		
 		bool read( QIODevice &dev );
-		bool write( QIODevice &dev, Compression level=NONE );
+		bool write( QIODevice &dev, Compression level=BLOCKS );
 		
 		QImage outputPlanes() const;
 		
-	private:
-		std::vector<uint8_t> compress_none() const;
-		std::vector<uint8_t> compress_lines() const;
-		std::vector<uint8_t> compress_blocks() const;
-		
+	public: //TODO:
 		typedef int (AraImage::*FilterFunc)( int,unsigned,unsigned ) const;
 		int normal_filter( int plane, unsigned x, unsigned y ) const;
 		int sub_filter( int plane, unsigned x, unsigned y ) const;
 		int up_filter( int plane, unsigned x, unsigned y ) const;
 		int avg_filter( int plane, unsigned x, unsigned y ) const;
 		int diff_filter( int plane, unsigned x, unsigned y, int dx, int dy ) const;
+		
+		enum EnabledTypes{
+			NORMAL_ON = 0x01
+		,	SUB_ON = 0x02
+		,	UP_ON = 0x04
+		,	AVG_ON = 0x08
+		,	DIFF_ON = 0x10
+		,	MULTI_ON = 0x20
+		,	ALL_ON = 0xFF
+		};
+		
+		struct Config{
+			unsigned block_size;
+			unsigned min_block_size;
+			unsigned search_size;
+			EnabledTypes types;
+			double multi_penalty;
+			bool both_directions;
+			int diff_save_offset{ 128 };
+			bool diff_compress_offsets{ true };
+			bool save_settings{ true };
+		};
 		
 		enum Type{
 			MULTI  = 0x0
@@ -137,6 +155,61 @@ class AraImage{
 				}
 			}
 		};
+		
+		struct AraBlock{
+			Type  type{ NORMAL };
+			unsigned x;
+			unsigned y;
+			std::vector<int> data;
+			std::vector<uint8_t> types;
+			std::vector<uint8_t> settings;
+			unsigned count{ 0 };
+			
+			unsigned width;
+			unsigned height;
+			
+			AraBlock( Type t, unsigned x, unsigned y, unsigned size, const AraImage& img, int plane )
+				:	type(t), x(x), y(y) {
+				types.push_back( t );
+				
+				width = std::min(x+size, img.planes[plane].width) - x;
+				height = std::min(y+size, img.planes[plane].height) - y;
+				data.reserve( width * height );
+			}
+			
+			AraBlock( Type t, unsigned x, unsigned y, unsigned size, const AraImage& img, int plane, FilterFunc filter )
+				:	AraBlock( t, x, y, size, img, plane ) {
+				for( unsigned iy=y; iy < y+height; iy++ )
+					for( unsigned ix=x; ix < x+width; ix++ ){
+						auto val = (img.*filter)( plane, ix, iy );
+						data.emplace_back( val );
+						count += abs( val );
+					}
+			}
+			
+			AraBlock( unsigned x, unsigned y, const AraImage& img, int plane, Config config );
+		};
+		
+		
+		double type_weight{ 0.0 };
+		double count_weight{ 1.0 };
+		double setting_lin_weight{ 1.0 };
+		double setting_log_weight{ 0.0 };
+		
+		double weight_setting( int setting ) const;
+		double weight( const AraBlock& block ) const;
+		double weight( unsigned type_count, unsigned count, unsigned settings_count, double settings_sum ) const;
+			
+		AraBlock makeMulti( unsigned x, unsigned y, int plane, Config config ) const;
+		AraBlock best_block( unsigned x, unsigned y, int plane, Config config ) const;
+		std::vector<int> make_optimal( Config config ) const;
+		std::vector<uint8_t> make_optimal_configuration() const;
+		
+		
+		
+		std::vector<uint8_t> compress_none() const;
+		std::vector<uint8_t> compress_lines() const;
+		std::vector<uint8_t> compress_blocks( Config config ) const;
 };
 
 #endif

@@ -233,12 +233,13 @@ bool AraImage::write( QIODevice &dev, Compression level ){
 //	center( planes[1] ).asImage( depth ).save( "u-invert-diff-nooffset.png" );
 //	center( planes[2] ).asImage( depth ).save( "v-invert-diff-nooffset.png" );
 	
+	
 	//Generate output data
 	vector<uint8_t> data;
 	switch( compression ){
 		case NONE:   data = compress_none(); break;
 		case LINES:  data = compress_lines(); break;
-		case BLOCKS: data = compress_blocks(); break;
+		case BLOCKS: data = make_optimal_configuration(); //compress_blocks( config ); break;
 	};
 	
 	//Write compressed data
@@ -326,6 +327,263 @@ vector<uint8_t> AraImage::compress_lines() const{
 	return data;
 }
 
-vector<uint8_t> AraImage::compress_blocks() const{
+vector<uint8_t> AraImage::compress_blocks( Config config ) const{
+	vector<int> out;
+	vector<uint8_t> types;
+	vector<uint8_t> settings;
 	
+	for( unsigned p=0; p<planes.size(); p++ )
+		for( unsigned iy=0; iy<planes[p].height; iy+=config.block_size ){
+			vector<AraBlock> blocks;
+			
+			//Make blocks
+			for( unsigned ix=0; ix<planes[p].width; ix+=config.block_size )
+				blocks.emplace_back( best_block( ix, iy, p, config ) );
+			
+			//Output
+			for( auto block : blocks )
+				for( auto data : block.data )
+					out.push_back( data );
+			
+			for( auto block : blocks ){
+				for( auto type : block.types )
+					types.push_back( type );
+				for( auto set : block.settings )
+					settings.push_back( set );
+			}
+		}
+	
+	auto data = packTo8bit( out );
+	
+//	cout << "count size: " << lzmaCompress( data ).size() << " - ?" << endl;
+//	cout << "\ttypes size:    " << lzmaCompress( types ).size() << "\t - " << types.size() << endl;
+//	cout << "\tsettings size: " << lzmaCompress( settings ).size() << "\t - " << settings.size() << endl;
+	
+	//Add settings
+	if( config.save_settings ){
+	//	cout << "Types size: " << types.size() << endl;
+	//	cout << "Settings size: " << settings.size() << endl;
+	
+		for( auto set : settings )
+			data.push_back( set );
+		for( auto type : types )
+			data.push_back( type );
+	}
+	
+	return data;
+}
+
+unsigned offset_dif( unsigned x, unsigned y, int dx, int dy, unsigned width, unsigned height, const AraImage& img, int plane ){
+	unsigned count = 0;
+	for( unsigned iy=y; iy < y+height; iy++ )
+		for( unsigned ix=x; ix < x+width; ix++ )
+			count += img.diff_filter( plane, ix, iy, dx, dy );
+	
+	return count;
+}
+
+
+
+AraImage::AraBlock::AraBlock( unsigned x, unsigned y, const AraImage& img, int plane, AraImage::Config config )
+	:	type( DIFF ), x(x), y(y) {
+	auto p_width = img.planes[plane].width;
+	auto p_height = img.planes[plane].height;
+	
+	width = std::min(x+config.block_size, p_width) - x;
+	height = std::min(y+config.block_size, p_height) - y;
+	
+	count = INT_MAX;
+	double best = count; //TODO: dbl_max
+	
+	unsigned min_x = max( 0, (int)x - (int)config.search_size+1 );
+	unsigned min_y = max( 0, (int)y - (int)config.search_size+1 );
+	unsigned max_x = min( x+1, p_width-width );
+	unsigned max_y = min( y+1, p_height-height );
+	if( config.both_directions ){
+		max_x = min( x + config.search_size, p_width-width );
+		max_y = min( y + config.search_size, p_height-height );
+	}
+	
+	unsigned bx = 0, by = 0;
+	for( unsigned iy=min_y; iy < max_y; iy++ )
+		for( unsigned ix=min_x; ix < max_x; ix++ ){
+			if( ix == x && iy == y )
+				continue;
+			
+			auto current = offset_dif( x, y, ix-x, iy-y, width, height, img, plane );
+			
+			double sum = img.weight_setting( (int)x-(int)bx ) + img.weight_setting( (int)y-(int)by );
+			double w = img.weight( types.size(), current, 2, sum );
+	//		cout << w << "\t" << current << endl;
+			if( w < best ){
+				count = current;
+				best = w;
+				bx = ix;
+				by = iy;
+			}
+		}
+	
+//	cout << "Best: " << (int)bx-(int)x << "x" << (int)by-(int)y << endl;
+	for( unsigned iy=y; iy < y+height; iy++ )
+		for( unsigned ix=x; ix < x+width; ix++ )
+			data.push_back( img.diff_filter( plane, ix, iy, (int)bx-(int)x, (int)by-(int)y ) );
+	
+	settings.push_back( (int)x-(int)bx + config.diff_save_offset );
+	settings.push_back( (int)y-(int)by + config.diff_save_offset );
+}
+
+AraImage::AraBlock AraImage::makeMulti( unsigned x, unsigned y, int plane, AraImage::Config config ) const{
+	AraBlock multi( MULTI, x, y, config.block_size, *this, plane );
+	config.block_size /= 2;
+	unsigned size = config.block_size;
+	
+	//Prevent it from creating it, if it cannot make all four blocks
+	//TODO: Make this more flexible
+	if( multi.width < size || multi.height < size || size < config.min_block_size ){
+		multi.count = INT_MAX;
+		return multi;
+	}
+	
+	//Find the best one for each four pieces
+	vector<AraBlock> blocks;
+	blocks.emplace_back( best_block( x,      y,      plane, config ) );
+	blocks.emplace_back( best_block( x+size, y,      plane, config ) );
+	blocks.emplace_back( best_block( x,      y+size, plane, config ) );
+	blocks.emplace_back( best_block( x+size, y+size, plane, config ) );
+	
+	//Combine all data into one block
+	for( auto block : blocks )
+		for( auto data : block.data )
+			multi.data.push_back( data );
+	
+	//Add types
+	for( auto block : blocks )
+		for( auto type : block.types )
+			multi.types.push_back( type );
+	
+	//Add any settings from the blocks
+	for( auto block : blocks )
+		for( auto setting : block.settings )
+			multi.settings.push_back( setting );
+	
+	//Add count
+	for( auto block : blocks )
+		multi.count += block.count;
+	multi.count *= config.multi_penalty;
+	
+	return multi;
+}
+
+double AraImage::weight_setting( int setting ) const{
+	auto val = ceil(log2( setting+1 )) * setting_log_weight;
+	return val * val;
+}
+
+double AraImage::weight( const AraImage::AraBlock& block ) const{
+	double settings_sum = 0.0;
+	for( auto setting : block.settings )
+		settings_sum += weight_setting( setting );
+//	if( block.settings.size() != 0 )
+//		cout << settings_sum * setting_log_weight << "\t" << block.count * count_weight << endl;
+	
+	return weight( block.types.size(), block.count, block.settings.size(), settings_sum );
+}
+
+double AraImage::weight( unsigned type_count, unsigned count, unsigned settings_count, double settings_sum ) const{
+	return type_count * type_weight
+		+	count * count_weight
+		+	settings_count * setting_lin_weight
+		+	settings_sum;
+}
+
+AraImage::AraBlock AraImage::best_block( unsigned x, unsigned y, int plane, AraImage::Config config ) const{
+	auto types = config.types;
+	
+	AraBlock best( NORMAL, x, y, config.block_size, *this, plane, &AraImage::normal_filter );
+	if( !(types & NORMAL_ON) )
+		best.count = INT_MAX;
+		
+	if( types & MULTI_ON ){
+		AraBlock multi = makeMulti( x, y, plane, config );
+		if( weight(multi) < weight(best) )
+			best = multi;
+	}
+	
+	if( types & DIFF_ON ){
+		AraBlock diff( x, y, *this, plane, config );
+		if( weight(diff) < weight(best) )
+			best = diff;
+	}
+	
+	if( types & SUB_ON ){
+		AraBlock sub( SUB, x, y, config.block_size, *this, plane, &AraImage::sub_filter );
+		if( weight(sub) < weight(best) )
+			best = sub;
+	}
+	
+	if( y > 0 ){
+		if( types & UP_ON ){
+			AraBlock up( UP, x, y, config.block_size, *this, plane, &AraImage::up_filter );
+			if( weight(up) < weight(best) )
+				best = up;
+		}
+		
+		if( types & AVG_ON ){
+			AraBlock avg( AVG, x, y, config.block_size, *this, plane, &AraImage::avg_filter );
+			if( weight(avg) < weight(best) )
+				best = avg;
+		}
+	}
+	
+	return best;
+}
+
+std::vector<uint8_t> AraImage::make_optimal_configuration() const{
+	vector<uint8_t> best;
+	
+	Config config;
+	config.block_size = 8;
+	config.min_block_size = 4;
+	config.search_size = 4;
+	config.types = EnabledTypes(ALL_ON);
+	config.multi_penalty = 0.1;
+	config.both_directions = false;
+	config.save_settings = true;
+	config.diff_save_offset = 0;
+	
+		//Try several settings, and use best one
+		for( unsigned i=2; i<=32; i*=2 )
+			for( unsigned j=i; j>=2; j/=2 )
+				for( unsigned k=2; k<=max(16u, i); k*=2 )
+//				for( double m=0.00; m<1.5; m+=0.25 )
+				for( double l=0.1; l<1.95; l+=100.3 )
+				{
+//					type_weight = m;//0.025;
+//					count_weight = m;
+//					setting_lin_weight = m;
+//					setting_log_weight = m;
+//					config.multi_penalty = 0.1;
+					config.block_size = i;
+					config.min_block_size = j;
+					config.multi_penalty = l;
+					config.search_size = k;
+			
+					auto current = lzmaCompress( compress_blocks( config ) );
+					
+					cout << "Result: " << config.block_size << "-" << config.min_block_size << ": \t" << current.size();
+					if( current.size() < best.size() || best.size() == 0 ){
+						best = current;
+						
+						cout  << " !";
+					}
+					cout << "  \t" << k;
+					cout << "  \t" << l;
+//					cout << "  \t" << m;
+					cout << endl;
+					
+					if( config.block_size == config.min_block_size )
+						break;
+				}
+	
+	return best;
 }
