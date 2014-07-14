@@ -63,8 +63,8 @@ vector<uint8_t> packTo8bit( const vector<int>& in ){
 	vector<uint8_t> out;
 	out.reserve( in.size() );
 	
-	for( unsigned i=0; i<in.size(); i+=2 )
-		out.push_back( compress4bit( in[i], in[i+1] ) );
+	for( auto val : in )
+		out.push_back( val );
 	
 	return out;
 }

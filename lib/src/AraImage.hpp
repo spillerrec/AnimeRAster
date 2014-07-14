@@ -50,6 +50,8 @@ struct AraPlane{
 				std::cout << "Out of bounds: set " << x << "x" << y << " in (" << width << "x" << height << ")\n";
 			data[ x + y*width ] = value;
 		}
+		
+		QImage asImage( unsigned depth ) const;
 };
 
 class AraImage{
@@ -62,7 +64,8 @@ class AraImage{
 		
 		enum Compression{
 			NONE = 0x0
-		,	FILTERED = 0x1
+		,	LINES = 0x1
+		,	BLOCKS = 0x2
 		};
 	
 	private:
@@ -100,7 +103,40 @@ class AraImage{
 		
 	private:
 		std::vector<uint8_t> compress_none() const;
-		std::vector<uint8_t> compress_filtered() const;
+		std::vector<uint8_t> compress_lines() const;
+		std::vector<uint8_t> compress_blocks() const;
+		
+		typedef int (AraImage::*FilterFunc)( int,unsigned,unsigned ) const;
+		int normal_filter( int plane, unsigned x, unsigned y ) const;
+		int sub_filter( int plane, unsigned x, unsigned y ) const;
+		int up_filter( int plane, unsigned x, unsigned y ) const;
+		int avg_filter( int plane, unsigned x, unsigned y ) const;
+		int diff_filter( int plane, unsigned x, unsigned y, int dx, int dy ) const;
+		
+		enum Type{
+			MULTI  = 0x0
+		,	DIFF  = 0x1
+		,	UP   = 0x2
+		,	SUB  = 0x3
+		,	AVG  = 0x4
+		,	NORMAL = 0x5
+		};
+			
+		struct AraLine{
+			Type  type{ NORMAL };
+			std::vector<int> data;
+			unsigned count{ 0 };
+			
+			AraLine( Type t, unsigned y, const AraImage& img, int plane, FilterFunc filter ) : type(t) {
+				auto width = img.planes[plane].width;
+				data.reserve( width );
+				for( unsigned ix=0; ix<width; ix++ ){
+					auto val = (img.*filter)( plane, ix, y );
+					data.emplace_back( val );
+					count += val;
+				}
+			}
+		};
 };
 
 #endif

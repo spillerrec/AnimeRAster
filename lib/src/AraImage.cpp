@@ -21,6 +21,52 @@
 using namespace std;
 
 
+QImage AraPlane::asImage( unsigned depth ) const{
+	QImage img( width, height, QImage::Format_RGB32 );
+	img.fill( 0 );
+	
+	for( unsigned iy=0; iy<height; iy++ )
+		for( unsigned ix=0; ix<width; ix++ ){
+			auto val = int32_t( value( ix, iy ) >> (depth - 8 ) ) % 256;
+			img.setPixel( ix, iy, qRgb( val, val, val ) );
+		}
+	
+	return img;
+}
+
+
+int AraImage::normal_filter( int plane, unsigned x, unsigned y ) const{
+	return planes[plane].value( x, y );
+}
+
+int AraImage::sub_filter( int plane, unsigned x, unsigned y ) const{
+	if( x == 0 )
+		return normal_filter( plane, x ,y );
+	
+	return planes[plane].value( x-1, y ) - planes[plane].value( x, y );
+}
+
+int AraImage::up_filter( int plane, unsigned x, unsigned y ) const{
+	if( x == 0 )
+		return normal_filter( plane, x ,y );
+	
+	return planes[plane].value( x, y-1 ) - planes[plane].value( x, y );
+}
+
+int AraImage::avg_filter( int plane, unsigned x, unsigned y ) const{
+	if( x == 0 )
+		return up_filter( plane, x, y );
+	
+	int val = ( planes[plane].value( x, y-1 ) + planes[plane].value( x-1, y ) ) / 2;
+	return val - planes[plane].value( x, y );
+}
+
+int AraImage::diff_filter( int plane, unsigned x, unsigned y, int dx, int dy ) const{
+	return planes[plane].value( x, y ) - planes[plane].value( x + dx, y + dy );
+}
+
+
+
 static uint8_t read8( QIODevice &dev ){
 	char byte1 = 0;
 	dev.getChar( &byte1 );
@@ -141,6 +187,13 @@ bool AraImage::read( QIODevice &dev ){
 	return false;
 }
 
+AraPlane center( AraPlane p ){
+	auto stat = statistics( p.data );
+	stat.debug();
+	p.data = offsetData( p.data, -stat.min );
+	return p;
+}
+
 bool AraImage::write( QIODevice &dev, Compression level ){
 	dev.write( "ara", 3 );
 	write8( dev, 0 );
@@ -157,27 +210,52 @@ bool AraImage::write( QIODevice &dev, Compression level ){
 	write32( dev, height );
 	writeFloat( dev, pixel_ratio );
 	
+	//Test stuff
+	auto copy = planes;
+	
+//	planes[0].asImage( depth ).save( "l-normal.png" );
+	
+//	center( planes[1] ).asImage( depth ).save( "u-normal.png" );
+//	center( planes[2] ).asImage( depth ).save( "v-normal.png" );
+	
+//	planes[0].data = offsetData( copy[0].data, invertData( copy[1].data ) );
+//	planes[2].data = offsetData( copy[2].data, invertData( copy[1].data ) );
+	
+//	planes[0] = center( planes[0] );
+//	planes[1] = center( planes[1] );
+	
+//	outputPlanes().save( "test.png" );
+	
+	
+// Works well with RGB
+//	planes[1].data = offsetData( copy[1].data, invertData( copy[2].data ) );
+//	planes[2].data = offsetData( copy[2].data, invertData( copy[1].data ) );
+//	center( planes[1] ).asImage( depth ).save( "u-invert-diff-nooffset.png" );
+//	center( planes[2] ).asImage( depth ).save( "v-invert-diff-nooffset.png" );
+	
 	//Generate output data
 	vector<uint8_t> data;
 	switch( compression ){
-		case NONE:     data = compress_none(); break;
-		case FILTERED: data = compress_filtered(); break;
+		case NONE:   data = compress_none(); break;
+		case LINES:  data = compress_lines(); break;
+		case BLOCKS: data = compress_blocks(); break;
 	};
 	
 	//Write compressed data
 	auto out = lzmaCompress( data );
 	write32( dev, data_length = out.size() );
 	dev.write( (char*)out.data(), data_length );
+	
 
 	return false;
 }
 
 QImage AraImage::outputPlanes() const{
-	unsigned out_width = 0;
+	unsigned out_height = 0;
 	for( auto p : planes )
-		out_width += p.width;
+		out_height += p.height;
 	
-	QImage img( out_width, height, QImage::Format_RGB32 );
+	QImage img( width, out_height, QImage::Format_RGB32 );
 	img.fill( 0 );
 	
 	unsigned offset = 0;
@@ -185,10 +263,10 @@ QImage AraImage::outputPlanes() const{
 		for( unsigned iy=0; iy<p.height; iy++ )
 			for( unsigned ix=0; ix<p.width; ix++ ){
 				auto val = p.value( ix, iy ) >> (depth - 8 );
-				img.setPixel( ix+offset, iy, qRgb( val, val, val ) );
+				img.setPixel( ix, iy+offset, qRgb( val, val, val ) );
 			}
 		
-		offset += p.width;
+		offset += p.height;
 	}
 	
 	return img;
@@ -210,6 +288,44 @@ vector<uint8_t> AraImage::compress_none() const{
 }
 
 
-vector<uint8_t> AraImage::compress_filtered() const{
+vector<uint8_t> AraImage::compress_lines() const{
+	vector<int> out;
+	vector<uint8_t> types;
+	
+	for( unsigned p=0; p<planes.size(); p++ )
+		for( unsigned iy=0; iy<planes[p].height; iy++ ){
+			//Try all the possibilities
+			AraLine best( NORMAL, iy, *this, p, &AraImage::normal_filter );
+			AraLine sub( SUB, iy, *this, p, &AraImage::sub_filter );
+			
+			//Pick the one which has the smallest sum
+			if( sub.count < best.count )
+				best = sub;
+			
+			if( iy > 0 ){
+				AraLine up( UP, iy, *this, p, &AraImage::up_filter );
+				AraLine avg( AVG, iy, *this, p, &AraImage::avg_filter );
+				
+				if( up.count < best.count )
+					best = up;
+				if( avg.count < best.count )
+					best = avg;
+			}
+			
+			//Write it out
+			types.push_back( best.type ); //TODO: temp
+			for( auto val : best.data )
+				out.push_back( val );
+		}
+	
+	auto data = depth > 8 ? packTo16bit( out ) : packTo8bit( out );
+	cout << "Type amount: " << types.size() << endl;
+	for( auto type : types )
+		data.push_back( type );
+	
+	return data;
+}
+
+vector<uint8_t> AraImage::compress_blocks() const{
 	
 }
