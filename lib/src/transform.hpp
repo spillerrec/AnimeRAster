@@ -18,7 +18,9 @@
 #define TRANSFORM_HPP
 
 #include <stdint.h>
+#include <iostream>
 #include <vector>
+#include <climits>
 
 std::vector<uint8_t> packTo1bit( const std::vector<int>& in );
 std::vector<uint8_t> packTo4bit( const std::vector<int>& in );
@@ -26,5 +28,23 @@ std::vector<uint8_t> packTo8bit( const std::vector<int>& in );
 std::vector<uint8_t> packTo16bit( const std::vector<int>& in );
 
 std::vector<uint8_t> lzmaCompress( const std::vector<uint8_t>& in );
+
+struct Statistics{
+	int min{ INT_MAX };
+	int max{ INT_MIN };
+	int avg{ 0 };
+	unsigned variance{ 0 };
+	
+	void debug() const{
+		std::cout << "Stats: " << min << " - " << max << " - " << avg << " - " << variance << std::endl;
+	}
+};
+
+Statistics statistics( const std::vector<int>& data );
+
+std::vector<int> offsetData( const std::vector<int>& in, int offset );
+std::vector<int> offsetData( const std::vector<int>& data, const std::vector<int>& offsets );
+
+std::vector<int> invertData( const std::vector<int>& data );
 
 #endif

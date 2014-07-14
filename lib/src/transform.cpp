@@ -149,3 +149,50 @@ vector<uint8_t> lzmaCompress( const vector<uint8_t>& in ){
 }
 
 
+Statistics statistics( const std::vector<int>& data ){
+	Statistics stats;
+	
+	for( auto val : data ){
+		stats.min = min( stats.min, val );
+		stats.max = max( stats.max, val );
+		stats.avg += val;
+	}
+	stats.avg /= data.size();
+	
+	for( auto val : data )
+		stats.variance += abs( val - stats.avg ); //TODO: squared?
+	
+	return stats;
+}
+
+vector<int> offsetData( const vector<int>& in, int offset ){
+	vector<int> out;
+	out.reserve( in.size() );
+	
+	for( auto val : in )
+		out.emplace_back( val + offset );
+	
+	return out;
+}
+
+vector<int> offsetData( const std::vector<int>& data, const vector<int>& offsets ){
+	vector<int> out;
+	out.reserve( data.size() );
+	
+	for( unsigned i=0; i<data.size(); i++ )
+		out.emplace_back( data[i] + offsets[i] );
+	
+	return out;
+}
+
+vector<int> invertData( const vector<int>& in ){
+	vector<int> out;
+	out.reserve( in.size() );
+	
+	for( auto val : in )
+		out.emplace_back( -val );
+	
+	return out;
+}
+
+
