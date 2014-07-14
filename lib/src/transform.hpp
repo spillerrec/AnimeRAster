@@ -27,6 +27,9 @@ std::vector<uint8_t> packTo4bit( const std::vector<int>& in );
 std::vector<uint8_t> packTo8bit( const std::vector<int>& in );
 std::vector<uint8_t> packTo16bit( const std::vector<int>& in );
 
+std::vector<uint8_t> reorder16bit( const std::vector<uint8_t>& in );
+
+std::vector<uint8_t> lzmaDecompress( const std::vector<uint8_t>& in );
 std::vector<uint8_t> lzmaCompress( const std::vector<uint8_t>& in );
 
 struct Statistics{

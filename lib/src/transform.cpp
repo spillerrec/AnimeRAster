@@ -74,52 +74,74 @@ vector<uint8_t> packTo16bit( const vector<int>& in ){
 	out.reserve( in.size()*2 );
 	
 	for( auto val : in ){
+		if( val < 0 )
+			val = (-val)*2 + 1;
+		else
+			val = val*2;
+		
 		out.push_back( val & 0xFF );
 		out.push_back( val >> 8 );
 	}
+	
+	return reorder16bit( out );
+}
+
+vector<uint8_t> reorder16bit( const vector<uint8_t>& in ){
+	vector<uint8_t> out;
+	out.reserve( in.size() );
+	
+	for( unsigned i=0; i<in.size(); i+=2 )
+		out.push_back( in[i] );
+	for( unsigned i=1; i<in.size(); i+=2 )
+		out.push_back( in[i] );
 	
 	return out;
 }
 
 
 vector<uint8_t> lzmaDecompress( const vector<uint8_t>& in ){
-	/*
+	vector<uint8_t> out;
 	
 	//Initialize decoder
 	lzma_stream strm = LZMA_STREAM_INIT;
 	if( lzma_stream_decoder( &strm, UINT64_MAX, 0 ) != LZMA_OK )
-		return false;
-	
-	//Read data
-	uint32_t lenght = read_32( dev );
-	if( lenght == 0 )
-		return false;
-	
-	vector<char> buf( lenght );
-	dev.read( buf.data(), lenght );
-	
-	data.resize( size() );
+		return out;
 	
 	//Decompress
-	strm.next_in = (uint8_t*)buf.data();
-	strm.avail_in = buf.size();
+	strm.next_in = (uint8_t*)in.data();
+	strm.avail_in = in.size();
 	
-	strm.next_out = data.data();
-	strm.avail_out = data.size();
+	//Output buffer
+	vector<uint8_t> buf( 4096 );
 	
-	if( lzma_code( &strm, LZMA_FINISH ) != LZMA_STREAM_END ){
-		cout << "Shit, didn't finish decompressing!" << endl;
-		return false;
+	while( true ){
+		strm.next_out = buf.data();
+		strm.avail_out = buf.size();
+		
+		auto ret = lzma_code( &strm, LZMA_FINISH );
+		
+		if( strm.avail_out == 0 || ret == LZMA_STREAM_END ){
+			auto amount = buf.size() - strm.avail_out;
+			for( unsigned i=0; i<amount; i++ )
+				out.push_back( buf[i] );
+		}
+		
+		if( ret != LZMA_OK )
+			break;
 	}
 	
 	lzma_end(&strm);
-	*/
+	
+	
+	return out;
 }
 
 
 vector<uint8_t> lzmaCompress( const vector<uint8_t>& in ){
 	if( in.size() == 0 )
 		return in;
+	
+	cout << "Compressing: " << in.size() << endl;
 	
 	lzma_stream strm = LZMA_STREAM_INIT;
 	if( lzma_easy_encoder( &strm, 9 | LZMA_PRESET_EXTREME, LZMA_CHECK_CRC64 ) != LZMA_OK )

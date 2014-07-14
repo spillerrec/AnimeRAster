@@ -46,6 +46,13 @@ int AraImage::sub_filter( int plane, unsigned x, unsigned y ) const{
 	return planes[plane].value( x-1, y ) - planes[plane].value( x, y );
 }
 
+int AraImage::right_filter( int plane, unsigned x, unsigned y ) const{
+	if( x == planes[plane].width-1 )
+		return normal_filter( plane, x ,y );
+	
+	return planes[plane].value( x+1, y ) - planes[plane].value( x, y );
+}
+
 int AraImage::up_filter( int plane, unsigned x, unsigned y ) const{
 	if( x == 0 )
 		return normal_filter( plane, x ,y );
@@ -61,8 +68,39 @@ int AraImage::avg_filter( int plane, unsigned x, unsigned y ) const{
 	return val - planes[plane].value( x, y );
 }
 
+int AraImage::prev_filter( int plane, unsigned x, unsigned y ) const{
+	if( plane == 0 )
+		return normal_filter( plane, x, y );
+	if( x == 0 )
+		return normal_filter( plane, x ,y );
+	
+	return planes[plane-1].value( x-1, y ) - planes[plane].value( x, y );
+}
+
+int AraImage::paeth_filter( int plane, unsigned x, unsigned y ) const{
+	if( x == 0 )
+		return up_filter( plane, x, y );
+	
+	auto r = planes[plane].value( x, y );
+	auto a = planes[plane].value( x-1, y );
+	auto b = planes[plane].value( x, y-1 );
+	auto c = planes[plane].value( x-1, y-1 );
+	
+	auto p = a + b - c;
+	auto pa = abs( p - a );
+	auto pb = abs( p - b );
+	auto pc = abs( p - c );
+	
+	if( pa <= pb && pa <= pb )
+		return r - a;
+	else if( pb <= pc )
+		return r - b;
+	else
+		return r - c;
+}
+
 int AraImage::diff_filter( int plane, unsigned x, unsigned y, int dx, int dy ) const{
-	return planes[plane].value( x, y ) - planes[plane].value( x + dx, y + dy );
+	return planes[plane].value( x + dx, y + dy ) - planes[plane].value( x, y );
 }
 
 
@@ -112,6 +150,7 @@ void AraImage::initFromQImage( QImage img ){
 	depth = 8;
 	
 	if( img.allGray() ){
+		channels = GRAY;
 		AraPlane plane( width, height );
 		
 		for( unsigned iy=0; iy<height; iy++ )
@@ -121,6 +160,7 @@ void AraImage::initFromQImage( QImage img ){
 		planes.emplace_back( plane );
 	}
 	else{
+		channels = RGB;
 		AraPlane r( width, height );
 		AraPlane g( width, height );
 		AraPlane b( width, height );
@@ -157,11 +197,19 @@ void AraImage::initFromDump( std::vector<DumpPlane> dumps ){
 		planes.emplace_back( p );
 	}
 	
+	channels = YUV;
+	sub_sampling = 1; //TODO:
 	//TODO: figure out chroma-subsambling
 }
 
 bool AraImage::read( QIODevice &dev ){
 	//TODO: read magic
+	auto m1 = read8( dev );
+	auto m2 = read8( dev );
+	auto m3 = read8( dev );
+	if( m1 != m3 && m1 != 'a' && m2 != 'r' )
+		return false;
+	
 	auto version = read8( dev );
 	if( version > 0 )
 		return false;
@@ -180,11 +228,51 @@ bool AraImage::read( QIODevice &dev ){
 	
 	//TODO: skip if header is longer than read
 
-	data_length = read32( dev );
+	//Read compressed data
+	vector<uint8_t> buf( data_length );
+	dev.read( (char*)buf.data(), buf.size() );
+	
+	auto data = lzmaDecompress( buf );
 	
 	//TODO: read data
+	int lines = 0;
+	for( auto p : planes )
+		lines += p.height;
+	
+	switch( compression ){
+		case NONE:{
+				vector<uint8_t> types( NORMAL, lines );
+				read_lines( types, data, 0 );
+				break;
+			};
+			
+		case LINES:{
+				vector<uint8_t> types( lines );
+				dev.read( (char*)types.data(), lines );
+				read_lines( types, data, lines );
+			};
+		
+		default: cout << "Can't decompress! " << compression << endl;
+	};
+	
+	outputPlanes().save( "readdata.png" );
 	
 	return false;
+}
+
+void AraImage::read_lines( vector<uint8_t> types, vector<uint8_t> data, unsigned offset ){
+	int amount = ( channels == GRAY ) ? 1 : 3;
+	
+	for( unsigned p=0; p<amount; p++ ){
+		int sub_size = ( sub_sampling == 1 && p != 0 ) ? 2 : 1;
+		AraPlane plane( width / sub_size, height / sub_size );
+		
+		for( unsigned iy=0; iy<plane.height; iy++ )
+			for( unsigned ix=0; ix<plane.width; ix++ )
+				plane.setValue( ix, iy, data[offset++] );
+		
+		planes.emplace_back( plane );
+	}
 }
 
 AraPlane center( AraPlane p ){
@@ -215,15 +303,18 @@ bool AraImage::write( QIODevice &dev, Compression level ){
 	
 //	planes[0].asImage( depth ).save( "l-normal.png" );
 	
-//	center( planes[1] ).asImage( depth ).save( "u-normal.png" );
-//	center( planes[2] ).asImage( depth ).save( "v-normal.png" );
+//	planes[1].asImage( depth ).save( "u-normal.png" );
+//	planes[2].asImage( depth ).save( "v-normal.png" );
 	
-//	planes[0].data = offsetData( copy[0].data, invertData( copy[1].data ) );
-//	planes[2].data = offsetData( copy[2].data, invertData( copy[1].data ) );
-	
-//	planes[0] = center( planes[0] );
-//	planes[1] = center( planes[1] );
-	
+	/*
+	if( planes.size() == 3 ){
+		planes[0].data = offsetData( copy[0].data, invertData( copy[1].data ) );
+		planes[2].data = offsetData( copy[2].data, invertData( copy[1].data ) );
+		
+		planes[0] = center( planes[0] );
+		planes[2] = center( planes[2] );
+	}
+	*/
 //	outputPlanes().save( "test.png" );
 	
 	
@@ -243,10 +334,13 @@ bool AraImage::write( QIODevice &dev, Compression level ){
 	};
 	
 	//Write compressed data
+//	auto out = data;//lzmaCompress( data );
 	auto out = lzmaCompress( data );
 	write32( dev, data_length = out.size() );
 	dev.write( (char*)out.data(), data_length );
 	
+	
+	outputPlanes();
 
 	return false;
 }
@@ -353,7 +447,11 @@ vector<uint8_t> AraImage::compress_blocks( Config config ) const{
 			}
 		}
 	
-	auto data = packTo8bit( out );
+	vector<uint8_t> data;
+	if( depth > 8 )
+		data = packTo16bit( out );
+	else
+		data = packTo8bit( out );
 	
 //	cout << "count size: " << lzmaCompress( data ).size() << " - ?" << endl;
 //	cout << "\ttypes size:    " << lzmaCompress( types ).size() << "\t - " << types.size() << endl;
@@ -508,6 +606,12 @@ AraImage::AraBlock AraImage::best_block( unsigned x, unsigned y, int plane, AraI
 		if( weight(multi) < weight(best) )
 			best = multi;
 	}
+		
+	if( types & PREV_ON ){
+		AraBlock prev( PREV, x, y, config.block_size, *this, plane, &AraImage::prev_filter );
+		if( weight(prev) < weight(best) )
+			best = prev;
+	}
 	
 	if( types & DIFF_ON ){
 		AraBlock diff( x, y, *this, plane, config );
@@ -519,6 +623,12 @@ AraImage::AraBlock AraImage::best_block( unsigned x, unsigned y, int plane, AraI
 		AraBlock sub( SUB, x, y, config.block_size, *this, plane, &AraImage::sub_filter );
 		if( weight(sub) < weight(best) )
 			best = sub;
+	}
+	
+	if( types & RIGHT_ON && config.both_directions ){
+		AraBlock right( RIGHT, x, y, config.block_size, *this, plane, &AraImage::right_filter );
+		if( weight(right) < weight(best) )
+			best = right;
 	}
 	
 	if( y > 0 ){
@@ -533,6 +643,12 @@ AraImage::AraBlock AraImage::best_block( unsigned x, unsigned y, int plane, AraI
 			if( weight(avg) < weight(best) )
 				best = avg;
 		}
+		
+		if( types & PAETH_ON ){
+			AraBlock paeth( PAETH, x, y, config.block_size, *this, plane, &AraImage::paeth_filter );
+			if( weight(paeth) < weight(best) )
+				best = paeth;
+		}
 	}
 	
 	return best;
@@ -540,23 +656,24 @@ AraImage::AraBlock AraImage::best_block( unsigned x, unsigned y, int plane, AraI
 
 std::vector<uint8_t> AraImage::make_optimal_configuration() const{
 	vector<uint8_t> best;
+	vector<uint8_t> buf;
 	
 	Config config;
 	config.block_size = 8;
 	config.min_block_size = 4;
 	config.search_size = 4;
-	config.types = EnabledTypes(ALL_ON);
+	config.types = EnabledTypes(ALL_ON & ~DIFF_ON & ~PAETH_ON & ~RIGHT_ON & ~PREV_ON );
 	config.multi_penalty = 0.1;
 	config.both_directions = false;
 	config.save_settings = true;
 	config.diff_save_offset = 0;
 	
 		//Try several settings, and use best one
-		for( unsigned i=2; i<=32; i*=2 )
-			for( unsigned j=i; j>=2; j/=2 )
-				for( unsigned k=2; k<=max(16u, i); k*=2 )
+		for( unsigned i=4; i<=16; i*=2 )
+			for( unsigned j=i; j>=i; j/=2 )
+				for( unsigned k=2; k<=2; k*=2 )
 //				for( double m=0.00; m<1.5; m+=0.25 )
-				for( double l=0.1; l<1.95; l+=100.3 )
+				for( double l=0.1; l<1.0; l+=10.3 )
 				{
 //					type_weight = m;//0.025;
 //					count_weight = m;
@@ -568,11 +685,13 @@ std::vector<uint8_t> AraImage::make_optimal_configuration() const{
 					config.multi_penalty = l;
 					config.search_size = k;
 			
-					auto current = lzmaCompress( compress_blocks( config ) );
+					auto data = compress_blocks( config );
+					auto current = lzmaCompress( data );
 					
 					cout << "Result: " << config.block_size << "-" << config.min_block_size << ": \t" << current.size();
 					if( current.size() < best.size() || best.size() == 0 ){
 						best = current;
+						buf = data;
 						
 						cout  << " !";
 					}
@@ -585,5 +704,5 @@ std::vector<uint8_t> AraImage::make_optimal_configuration() const{
 						break;
 				}
 	
-	return best;
+	return buf;
 }

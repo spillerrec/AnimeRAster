@@ -97,7 +97,7 @@ class AraImage{
 		void initFromDump( std::vector<DumpPlane> dumps );
 		
 		bool read( QIODevice &dev );
-		bool write( QIODevice &dev, Compression level=BLOCKS );
+		bool write( QIODevice &dev, Compression level=NONE );
 		
 		QImage outputPlanes() const;
 		
@@ -107,6 +107,9 @@ class AraImage{
 		int sub_filter( int plane, unsigned x, unsigned y ) const;
 		int up_filter( int plane, unsigned x, unsigned y ) const;
 		int avg_filter( int plane, unsigned x, unsigned y ) const;
+		int paeth_filter( int plane, unsigned x, unsigned y ) const;
+		int right_filter( int plane, unsigned x, unsigned y ) const;
+		int prev_filter( int plane, unsigned x, unsigned y ) const;
 		int diff_filter( int plane, unsigned x, unsigned y, int dx, int dy ) const;
 		
 		enum EnabledTypes{
@@ -116,7 +119,10 @@ class AraImage{
 		,	AVG_ON = 0x08
 		,	DIFF_ON = 0x10
 		,	MULTI_ON = 0x20
-		,	ALL_ON = 0xFF
+		,	PAETH_ON = 0x40
+		,	RIGHT_ON = 0x80
+		,	PREV_ON = 0x100
+		,	ALL_ON = 0xFFFF
 		};
 		
 		struct Config{
@@ -137,7 +143,10 @@ class AraImage{
 		,	UP   = 0x2
 		,	SUB  = 0x3
 		,	AVG  = 0x4
-		,	NORMAL = 0x5
+		,	PAETH = 0x5
+		,	RIGHT = 0x6
+		,	NORMAL = 0x7
+		,	PREV = 0x8
 		};
 			
 		struct AraLine{
@@ -205,7 +214,7 @@ class AraImage{
 		std::vector<int> make_optimal( Config config ) const;
 		std::vector<uint8_t> make_optimal_configuration() const;
 		
-		
+		void read_lines( std::vector<uint8_t> types, std::vector<uint8_t> data, unsigned offset );
 		
 		std::vector<uint8_t> compress_none() const;
 		std::vector<uint8_t> compress_lines() const;

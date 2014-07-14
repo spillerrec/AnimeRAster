@@ -26,7 +26,7 @@
 using namespace std;
 
 
-QStringList input_formats = QStringList() << "*.dump" << "*.png" << "*.webp";
+QStringList input_formats = QStringList() << "*.dump" << "*.png" << "*.webp" << "*.ara";
 
 int main( int argc, char* argv[] ){
 	QCoreApplication app( argc, argv );
@@ -60,7 +60,12 @@ int main( int argc, char* argv[] ){
 		
 		//Read
 		if( f.open( QIODevice::ReadOnly ) ){
-			if( info.suffix() == "dump" ){
+			if( info.suffix() == "ara" ){
+				img.read( f );
+				
+				break;
+			}
+			else if( info.suffix() == "dump" ){
 				vector<DumpPlane> dumps;
 				while( true ){
 					DumpPlane p;
@@ -83,15 +88,15 @@ int main( int argc, char* argv[] ){
 		
 		//TODO: skip if not loaded
 		
-		//Debug
-		img.outputPlanes().save( "planes.png" );
-		
 		//Write
 		QFile copy( temp_name );
 		if( copy.open( QIODevice::WriteOnly ) ){
 			img.write( copy );
 			copy.close();
 		}
+		
+		//Debug
+		img.outputPlanes().save( "planes.png" );
 		
 		if( QFileInfo( temp_name ).size() > 0 ){
 		//	QFile::remove( file );
