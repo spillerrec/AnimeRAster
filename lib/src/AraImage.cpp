@@ -36,28 +36,28 @@ QImage AraPlane::asImage( unsigned depth ) const{
 
 
 int AraImage::normal_filter( int plane, unsigned x, unsigned y ) const{
-	return planes[plane].value( x, y );
+	return planes[plane].value( x, y ); //TODO: substract half?
 }
 
 int AraImage::sub_filter( int plane, unsigned x, unsigned y ) const{
 	if( x == 0 )
 		return normal_filter( plane, x ,y );
 	
-	return planes[plane].value( x-1, y ) - planes[plane].value( x, y );
+	return planes[plane].value( x, y ) - planes[plane].value( x-1, y );
 }
 
 int AraImage::right_filter( int plane, unsigned x, unsigned y ) const{
 	if( x == planes[plane].width-1 )
 		return normal_filter( plane, x ,y );
 	
-	return planes[plane].value( x+1, y ) - planes[plane].value( x, y );
+	return planes[plane].value( x, y ) - planes[plane].value( x+1, y );
 }
 
 int AraImage::up_filter( int plane, unsigned x, unsigned y ) const{
 	if( x == 0 )
 		return normal_filter( plane, x ,y );
 	
-	return planes[plane].value( x, y-1 ) - planes[plane].value( x, y );
+	return planes[plane].value( x, y ) - planes[plane].value( x, y-1 );
 }
 
 int AraImage::avg_filter( int plane, unsigned x, unsigned y ) const{
@@ -65,7 +65,7 @@ int AraImage::avg_filter( int plane, unsigned x, unsigned y ) const{
 		return up_filter( plane, x, y );
 	
 	int val = ( planes[plane].value( x, y-1 ) + planes[plane].value( x-1, y ) ) / 2;
-	return val - planes[plane].value( x, y );
+	return planes[plane].value( x, y ) - val;
 }
 
 int AraImage::prev_filter( int plane, unsigned x, unsigned y ) const{
@@ -74,7 +74,7 @@ int AraImage::prev_filter( int plane, unsigned x, unsigned y ) const{
 	if( x == 0 )
 		return normal_filter( plane, x ,y );
 	
-	return planes[plane-1].value( x-1, y ) - planes[plane].value( x, y );
+	return planes[plane].value( x, y ) - planes[plane-1].value( x-1, y );
 }
 
 int AraImage::paeth_filter( int plane, unsigned x, unsigned y ) const{
@@ -100,8 +100,55 @@ int AraImage::paeth_filter( int plane, unsigned x, unsigned y ) const{
 }
 
 int AraImage::diff_filter( int plane, unsigned x, unsigned y, int dx, int dy ) const{
-	return planes[plane].value( x + dx, y + dy ) - planes[plane].value( x, y );
+	return planes[plane].value( x, y ) - planes[plane].value( x + dx, y + dy );
 }
+
+
+int AraImage::normal_defilter( int plane, unsigned x, unsigned y ) const{
+	return 0;
+}
+
+int AraImage::sub_defilter( int plane, unsigned x, unsigned y ) const{
+	if( x == 0 )
+		return normal_defilter( plane, x ,y );
+	return planes[plane].value( x-1, y );
+}
+
+int AraImage::up_defilter( int plane, unsigned x, unsigned y ) const{
+	if( x == 0 )
+		return normal_defilter( plane, x,y );
+	return planes[plane].value( x, y-1 );
+}
+
+int AraImage::avg_defilter( int plane, unsigned x, unsigned y ) const{
+	if( x == 0 )
+		return up_defilter( plane, x, y );
+	return ( planes[plane].value( x, y-1 ) + planes[plane].value( x-1, y ) ) / 2;
+}
+
+int AraImage::paeth_defilter( int plane, unsigned x, unsigned y ) const{
+	//TODO: how?
+}
+
+int AraImage::right_defilter( int plane, unsigned x, unsigned y ) const{
+	if( x == planes[plane].width-1 )
+		return normal_defilter( plane, x,y );
+	return planes[plane].value( x+1, y );
+}
+
+int AraImage::prev_defilter( int plane, unsigned x, unsigned y ) const{
+	if( plane == 0 )
+		return normal_defilter( plane, x, y );
+	if( x == 0 )
+		return normal_defilter( plane, x ,y );
+	
+	return planes[plane-1].value( x-1, y );
+}
+
+int AraImage::diff_defilter( int plane, unsigned x, unsigned y, int dx, int dy ) const{
+	
+}
+
 
 
 
@@ -229,6 +276,7 @@ bool AraImage::read( QIODevice &dev ){
 	//TODO: skip if header is longer than read
 
 	//Read compressed data
+	data_length = read32( dev );
 	vector<uint8_t> buf( data_length );
 	dev.read( (char*)buf.data(), buf.size() );
 	
@@ -236,8 +284,8 @@ bool AraImage::read( QIODevice &dev ){
 	
 	//TODO: read data
 	int lines = 0;
-	for( auto p : planes )
-		lines += p.height;
+	for( unsigned p=0; p<plane_amount(); p++ )
+		lines += plane_height( p );
 	
 	switch( compression ){
 		case NONE:{
@@ -247,9 +295,11 @@ bool AraImage::read( QIODevice &dev ){
 			};
 			
 		case LINES:{
-				vector<uint8_t> types( lines );
-				dev.read( (char*)types.data(), lines );
+				vector<uint8_t> types;
+				for( unsigned i=0; i<lines; i++ )
+					types.push_back( data[i] );
 				read_lines( types, data, lines );
+				break;
 			};
 		
 		default: cout << "Can't decompress! " << compression << endl;
@@ -261,17 +311,23 @@ bool AraImage::read( QIODevice &dev ){
 }
 
 void AraImage::read_lines( vector<uint8_t> types, vector<uint8_t> data, unsigned offset ){
-	int amount = ( channels == GRAY ) ? 1 : 3;
+	planes.clear();
 	
-	for( unsigned p=0; p<amount; p++ ){
-		int sub_size = ( sub_sampling == 1 && p != 0 ) ? 2 : 1;
-		AraPlane plane( width / sub_size, height / sub_size );
+	unsigned t = 0;
+	unsigned limit = pow( 2, depth );
+	
+	for( unsigned p=0; p<plane_amount(); p++ ){
+		planes.emplace_back( AraPlane( plane_width( p ), plane_height( p ) ) );
 		
-		for( unsigned iy=0; iy<plane.height; iy++ )
-			for( unsigned ix=0; ix<plane.width; ix++ )
-				plane.setValue( ix, iy, data[offset++] );
+		for( unsigned iy=0; iy<planes[p].height; iy++ ){
+			auto f = getFilter( (Type)types[t++] );
+			
+			for( unsigned ix=0; ix<planes[p].width; ix++ ){
+				unsigned val = data[offset++] + (this->*f)( p, ix, iy );
+				planes[p].setValue( ix, iy, val % limit );
+			}
+		}
 		
-		planes.emplace_back( plane );
 	}
 }
 
@@ -415,10 +471,10 @@ vector<uint8_t> AraImage::compress_lines() const{
 	
 	auto data = depth > 8 ? packTo16bit( out ) : packTo8bit( out );
 	cout << "Type amount: " << types.size() << endl;
-	for( auto type : types )
-		data.push_back( type );
+	for( auto dat : data )
+		types.push_back( dat );
 	
-	return data;
+	return types;
 }
 
 vector<uint8_t> AraImage::compress_blocks( Config config ) const{

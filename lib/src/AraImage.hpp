@@ -97,7 +97,7 @@ class AraImage{
 		void initFromDump( std::vector<DumpPlane> dumps );
 		
 		bool read( QIODevice &dev );
-		bool write( QIODevice &dev, Compression level=NONE );
+		bool write( QIODevice &dev, Compression level=LINES );
 		
 		QImage outputPlanes() const;
 		
@@ -111,6 +111,15 @@ class AraImage{
 		int right_filter( int plane, unsigned x, unsigned y ) const;
 		int prev_filter( int plane, unsigned x, unsigned y ) const;
 		int diff_filter( int plane, unsigned x, unsigned y, int dx, int dy ) const;
+		
+		int normal_defilter( int plane, unsigned x, unsigned y ) const;
+		int sub_defilter( int plane, unsigned x, unsigned y ) const;
+		int up_defilter( int plane, unsigned x, unsigned y ) const;
+		int avg_defilter( int plane, unsigned x, unsigned y ) const;
+		int paeth_defilter( int plane, unsigned x, unsigned y ) const;
+		int right_defilter( int plane, unsigned x, unsigned y ) const;
+		int prev_defilter( int plane, unsigned x, unsigned y ) const;
+		int diff_defilter( int plane, unsigned x, unsigned y, int dx, int dy ) const;
 		
 		enum EnabledTypes{
 			NORMAL_ON = 0x01
@@ -147,6 +156,18 @@ class AraImage{
 		,	RIGHT = 0x6
 		,	NORMAL = 0x7
 		,	PREV = 0x8
+		};
+		
+		FilterFunc getFilter( Type t ) const{
+			switch( t ){
+				case NORMAL: return &AraImage::normal_defilter;
+				case UP: return &AraImage::up_defilter;
+				case SUB: return &AraImage::sub_defilter;
+				case AVG: return &AraImage::avg_defilter;
+				case RIGHT: return &AraImage::right_defilter;
+				case PREV: return &AraImage::prev_defilter;
+				default: return &AraImage::normal_defilter;
+			}
 		};
 			
 		struct AraLine{
@@ -214,6 +235,9 @@ class AraImage{
 		std::vector<int> make_optimal( Config config ) const;
 		std::vector<uint8_t> make_optimal_configuration() const;
 		
+		int plane_amount() const{ return ( channels == GRAY ) ? 1 : 3; }
+		int plane_height( int index ) const{ return height / (( sub_sampling == 1 && index != 0 ) ? 2 : 1); }
+		int plane_width( int index ) const{ return width / (( sub_sampling == 1 && index != 0 ) ? 2 : 1); }
 		void read_lines( std::vector<uint8_t> types, std::vector<uint8_t> data, unsigned offset );
 		
 		std::vector<uint8_t> compress_none() const;
