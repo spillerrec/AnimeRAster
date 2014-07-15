@@ -103,15 +103,6 @@ class AraImage{
 		
 	public: //TODO:
 		typedef int (AraImage::*FilterFunc)( int,unsigned,unsigned ) const;
-		int normal_filter( int plane, unsigned x, unsigned y ) const;
-		int sub_filter( int plane, unsigned x, unsigned y ) const;
-		int up_filter( int plane, unsigned x, unsigned y ) const;
-		int avg_filter( int plane, unsigned x, unsigned y ) const;
-		int paeth_filter( int plane, unsigned x, unsigned y ) const;
-		int right_filter( int plane, unsigned x, unsigned y ) const;
-		int prev_filter( int plane, unsigned x, unsigned y ) const;
-		int diff_filter( int plane, unsigned x, unsigned y, int dx, int dy ) const;
-		
 		int normal_predict( int plane, unsigned x, unsigned y ) const;
 		int sub_predict( int plane, unsigned x, unsigned y ) const;
 		int up_predict( int plane, unsigned x, unsigned y ) const;
@@ -120,6 +111,10 @@ class AraImage{
 		int right_predict( int plane, unsigned x, unsigned y ) const;
 		int prev_predict( int plane, unsigned x, unsigned y ) const;
 		int diff_predict( int plane, unsigned x, unsigned y, int dx, int dy ) const;
+		
+		int diff_filter( int plane, unsigned x, unsigned y, int dx, int dy ) const{
+			return planes[plane].value( x, y ) - diff_predict( plane, x, y, dx, dy );
+		}
 		
 		enum EnabledTypes{
 			NORMAL_ON = 0x01
@@ -160,14 +155,16 @@ class AraImage{
 		
 		FilterFunc getFilter( Type t ) const{
 			switch( t ){
-				case NORMAL: return &AraImage::normal_predict;
 				case UP: return &AraImage::up_predict;
 				case SUB: return &AraImage::sub_predict;
 				case AVG: return &AraImage::avg_predict;
-				case RIGHT: return &AraImage::right_predict;
-				case PREV: return &AraImage::prev_predict;
 				case PAETH: return &AraImage::paeth_predict;
-				default: return &AraImage::normal_predict;
+				case RIGHT: return &AraImage::right_predict;
+				case NORMAL: return &AraImage::normal_predict;
+				case PREV: return &AraImage::prev_predict;
+				default:
+					std::cout << "getFilter(): Not an usable filter!" << std::endl;
+					return &AraImage::normal_predict;
 			}
 		};
 			
@@ -176,11 +173,12 @@ class AraImage{
 			std::vector<int> data;
 			unsigned count{ 0 };
 			
-			AraLine( Type t, unsigned y, const AraImage& img, int plane, FilterFunc filter ) : type(t) {
+			AraLine( Type t, unsigned y, const AraImage& img, int plane ) : type(t) {
+				auto filter = img.getFilter( t );
 				auto width = img.planes[plane].width;
 				data.reserve( width );
 				for( unsigned ix=0; ix<width; ix++ ){
-					auto val = (img.*filter)( plane, ix, y );
+					auto val = img.planes[plane].value( ix, y ) - (img.*filter)( plane, ix, y );
 					data.emplace_back( val );
 					count += val;
 				}
@@ -199,7 +197,7 @@ class AraImage{
 			unsigned width;
 			unsigned height;
 			
-			AraBlock( Type t, unsigned x, unsigned y, unsigned size, const AraImage& img, int plane )
+			AraBlock( Type t, unsigned x, unsigned y, const AraImage& img, int plane, unsigned size )
 				:	type(t), x(x), y(y) {
 				types.push_back( t );
 				
@@ -208,11 +206,12 @@ class AraImage{
 				data.reserve( width * height );
 			}
 			
-			AraBlock( Type t, unsigned x, unsigned y, unsigned size, const AraImage& img, int plane, FilterFunc filter )
-				:	AraBlock( t, x, y, size, img, plane ) {
+			AraBlock( Type t, unsigned x, unsigned y, unsigned size, const AraImage& img, int plane )
+				:	AraBlock( t, x, y, img, plane, size ) {
+				auto filter = img.getFilter( t );
 				for( unsigned iy=y; iy < y+height; iy++ )
 					for( unsigned ix=x; ix < x+width; ix++ ){
-						auto val = (img.*filter)( plane, ix, iy );
+						auto val = img.planes[plane].value( ix, iy ) - (img.*filter)( plane, ix, iy );
 						data.emplace_back( val );
 						count += abs( val );
 					}

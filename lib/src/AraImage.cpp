@@ -35,39 +35,6 @@ QImage AraPlane::asImage( unsigned depth ) const{
 }
 
 
-int AraImage::normal_filter( int plane, unsigned x, unsigned y ) const{
-	return planes[plane].value( x, y ) - normal_predict( plane, x, y );
-}
-
-int AraImage::sub_filter( int plane, unsigned x, unsigned y ) const{
-	return planes[plane].value( x, y ) - sub_predict( plane, x, y );
-}
-
-int AraImage::right_filter( int plane, unsigned x, unsigned y ) const{
-	return planes[plane].value( x, y ) - right_predict( plane, x, y );
-}
-
-int AraImage::up_filter( int plane, unsigned x, unsigned y ) const{
-	return planes[plane].value( x, y ) - up_predict( plane, x, y );
-}
-
-int AraImage::avg_filter( int plane, unsigned x, unsigned y ) const{
-	return planes[plane].value( x, y ) - avg_predict( plane, x, y );
-}
-
-int AraImage::prev_filter( int plane, unsigned x, unsigned y ) const{
-	return planes[plane].value( x, y ) - prev_predict( plane, x, y );
-}
-
-int AraImage::paeth_filter( int plane, unsigned x, unsigned y ) const{
-	return planes[plane].value( x, y ) - paeth_predict( plane, x, y );
-}
-
-int AraImage::diff_filter( int plane, unsigned x, unsigned y, int dx, int dy ) const{
-	return planes[plane].value( x, y ) - diff_predict( plane, x, y, dx, dy );
-}
-
-
 int AraImage::normal_predict( int, unsigned, unsigned ) const{
 	return pow( 2, depth-1 );
 }
@@ -424,17 +391,17 @@ vector<uint8_t> AraImage::compress_lines() const{
 	for( unsigned p=0; p<planes.size(); p++ )
 		for( unsigned iy=0; iy<planes[p].height; iy++ ){
 			//Try all the possibilities
-			AraLine best( NORMAL, iy, *this, p, &AraImage::normal_filter );
-			AraLine sub( SUB, iy, *this, p, &AraImage::sub_filter );
+			AraLine best( NORMAL, iy, *this, p );
+			AraLine sub( SUB, iy, *this, p );
 			
 			//Pick the one which has the smallest sum
 			if( sub.count < best.count )
 				best = sub;
 			
 			if( iy > 0 ){
-				AraLine up( UP, iy, *this, p, &AraImage::up_filter );
-				AraLine avg( AVG, iy, *this, p, &AraImage::avg_filter );
-				AraLine paeth( PAETH, iy, *this, p, &AraImage::paeth_filter );
+				AraLine up( UP, iy, *this, p );
+				AraLine avg( AVG, iy, *this, p );
+				AraLine paeth( PAETH, iy, *this, p );
 				
 				if( up.count < best.count )
 					best = up;
@@ -520,12 +487,9 @@ unsigned offset_dif( unsigned x, unsigned y, int dx, int dy, unsigned width, uns
 
 
 AraImage::AraBlock::AraBlock( unsigned x, unsigned y, const AraImage& img, int plane, AraImage::Config config )
-	:	type( DIFF ), x(x), y(y) {
+	:	AraBlock( DIFF, x, y, img, plane, config.block_size ) {
 	auto p_width = img.planes[plane].width;
 	auto p_height = img.planes[plane].height;
-	
-	width = std::min(x+config.block_size, p_width) - x;
-	height = std::min(y+config.block_size, p_height) - y;
 	
 	count = INT_MAX;
 	double best = count; //TODO: dbl_max
@@ -634,7 +598,7 @@ double AraImage::weight( unsigned type_count, unsigned count, unsigned settings_
 AraImage::AraBlock AraImage::best_block( unsigned x, unsigned y, int plane, AraImage::Config config ) const{
 	auto types = config.types;
 	
-	AraBlock best( NORMAL, x, y, config.block_size, *this, plane, &AraImage::normal_filter );
+	AraBlock best( NORMAL, x, y, config.block_size, *this, plane );
 	if( !(types & NORMAL_ON) )
 		best.count = INT_MAX;
 		
@@ -645,7 +609,7 @@ AraImage::AraBlock AraImage::best_block( unsigned x, unsigned y, int plane, AraI
 	}
 		
 	if( types & PREV_ON ){
-		AraBlock prev( PREV, x, y, config.block_size, *this, plane, &AraImage::prev_filter );
+		AraBlock prev( PREV, x, y, config.block_size, *this, plane );
 		if( weight(prev) < weight(best) )
 			best = prev;
 	}
@@ -657,31 +621,31 @@ AraImage::AraBlock AraImage::best_block( unsigned x, unsigned y, int plane, AraI
 	}
 	
 	if( types & SUB_ON ){
-		AraBlock sub( SUB, x, y, config.block_size, *this, plane, &AraImage::sub_filter );
+		AraBlock sub( SUB, x, y, config.block_size, *this, plane );
 		if( weight(sub) < weight(best) )
 			best = sub;
 	}
 	
 	if( types & RIGHT_ON && config.both_directions ){
-		AraBlock right( RIGHT, x, y, config.block_size, *this, plane, &AraImage::right_filter );
+		AraBlock right( RIGHT, x, y, config.block_size, *this, plane );
 		if( weight(right) < weight(best) )
 			best = right;
 	}
 	
 	if( types & UP_ON ){
-		AraBlock up( UP, x, y, config.block_size, *this, plane, &AraImage::up_filter );
+		AraBlock up( UP, x, y, config.block_size, *this, plane );
 		if( weight(up) < weight(best) )
 			best = up;
 	}
 	
 	if( types & AVG_ON ){
-		AraBlock avg( AVG, x, y, config.block_size, *this, plane, &AraImage::avg_filter );
+		AraBlock avg( AVG, x, y, config.block_size, *this, plane );
 		if( weight(avg) < weight(best) )
 			best = avg;
 	}
 	
 	if( types & PAETH_ON ){
-		AraBlock paeth( PAETH, x, y, config.block_size, *this, plane, &AraImage::paeth_filter );
+		AraBlock paeth( PAETH, x, y, config.block_size, *this, plane );
 		if( weight(paeth) < weight(best) )
 			best = paeth;
 	}
