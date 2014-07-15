@@ -112,14 +112,14 @@ class AraImage{
 		int prev_filter( int plane, unsigned x, unsigned y ) const;
 		int diff_filter( int plane, unsigned x, unsigned y, int dx, int dy ) const;
 		
-		int normal_defilter( int plane, unsigned x, unsigned y ) const;
-		int sub_defilter( int plane, unsigned x, unsigned y ) const;
-		int up_defilter( int plane, unsigned x, unsigned y ) const;
-		int avg_defilter( int plane, unsigned x, unsigned y ) const;
-		int paeth_defilter( int plane, unsigned x, unsigned y ) const;
-		int right_defilter( int plane, unsigned x, unsigned y ) const;
-		int prev_defilter( int plane, unsigned x, unsigned y ) const;
-		int diff_defilter( int plane, unsigned x, unsigned y, int dx, int dy ) const;
+		int normal_predict( int plane, unsigned x, unsigned y ) const;
+		int sub_predict( int plane, unsigned x, unsigned y ) const;
+		int up_predict( int plane, unsigned x, unsigned y ) const;
+		int avg_predict( int plane, unsigned x, unsigned y ) const;
+		int paeth_predict( int plane, unsigned x, unsigned y ) const;
+		int right_predict( int plane, unsigned x, unsigned y ) const;
+		int prev_predict( int plane, unsigned x, unsigned y ) const;
+		int diff_predict( int plane, unsigned x, unsigned y, int dx, int dy ) const;
 		
 		enum EnabledTypes{
 			NORMAL_ON = 0x01
@@ -160,13 +160,14 @@ class AraImage{
 		
 		FilterFunc getFilter( Type t ) const{
 			switch( t ){
-				case NORMAL: return &AraImage::normal_defilter;
-				case UP: return &AraImage::up_defilter;
-				case SUB: return &AraImage::sub_defilter;
-				case AVG: return &AraImage::avg_defilter;
-				case RIGHT: return &AraImage::right_defilter;
-				case PREV: return &AraImage::prev_defilter;
-				default: return &AraImage::normal_defilter;
+				case NORMAL: return &AraImage::normal_predict;
+				case UP: return &AraImage::up_predict;
+				case SUB: return &AraImage::sub_predict;
+				case AVG: return &AraImage::avg_predict;
+				case RIGHT: return &AraImage::right_predict;
+				case PREV: return &AraImage::prev_predict;
+				case PAETH: return &AraImage::paeth_predict;
+				default: return &AraImage::normal_predict;
 			}
 		};
 			
@@ -235,9 +236,9 @@ class AraImage{
 		std::vector<int> make_optimal( Config config ) const;
 		std::vector<uint8_t> make_optimal_configuration() const;
 		
-		int plane_amount() const{ return ( channels == GRAY ) ? 1 : 3; }
-		int plane_height( int index ) const{ return height / (( sub_sampling == 1 && index != 0 ) ? 2 : 1); }
-		int plane_width( int index ) const{ return width / (( sub_sampling == 1 && index != 0 ) ? 2 : 1); }
+		unsigned plane_amount() const{ return ( channels == GRAY ) ? 1 : 3; }
+		unsigned plane_height( int index ) const{ return height / (( sub_sampling == 1 && index != 0 ) ? 2 : 1); }
+		unsigned plane_width( int index ) const{ return width / (( sub_sampling == 1 && index != 0 ) ? 2 : 1); }
 		void read_lines( std::vector<uint8_t> types, std::vector<uint8_t> data, unsigned offset );
 		
 		std::vector<uint8_t> compress_none() const;
