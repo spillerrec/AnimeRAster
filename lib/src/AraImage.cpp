@@ -218,7 +218,8 @@ bool AraImage::read( QIODevice &dev ){
 	height = read32( dev );
 	pixel_ratio = readFloat( dev );
 	
-	//TODO: skip if header is longer than read
+	//skip if header is longer than read
+	dev.seek( header_lenght + 6 ); //TODO: doesn't work for sequential devices
 
 	//Read compressed data
 	data_length = read32( dev );
