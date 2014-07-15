@@ -384,38 +384,84 @@ vector<uint8_t> AraImage::compress_none() const{
 		return packTo8bit( data );
 }
 
+AraImage::Chunk AraImage::compress_lines_chunk( int p, unsigned y, unsigned amount, int enabled_types ) const{
+	Chunk chunk;
+	
+	for( unsigned iy=y; iy<min(y+amount, planes[p].height); iy++ ){
+		//Try all the possibilities
+		AraLine best( NORMAL, iy, *this, p );
+		AraLine sub( SUB, iy, *this, p );
+		
+		//Pick the one which has the smallest sum
+		if( sub.count < best.count && enabled_types & SUB_ON )
+			best = sub;
+		
+		if( iy > 0 ){
+			AraLine up( UP, iy, *this, p );
+			AraLine avg( AVG, iy, *this, p );
+			AraLine paeth( PAETH, iy, *this, p );
+			
+			if( up.count < best.count && enabled_types & UP_ON )
+				best = up;
+			if( avg.count < best.count && enabled_types & AVG_ON )
+				best = avg;
+			if( paeth.count < best.count && enabled_types & PAETH_ON )
+				best = paeth;
+		}
+		
+		//Write it out
+		chunk.types.push_back( best.type ); //TODO: temp
+		for( auto val : best.data )
+			chunk.data.push_back( val );
+	}
+	
+	return chunk;
+}
 
 vector<uint8_t> AraImage::compress_lines() const{
 	vector<int> out;
 	vector<uint8_t> types;
 	
+	unsigned amount = 1; //TODO:
+	vector<int> enabled_types{ ALL_ON
+		,	ALL_ON & ~NORMAL_ON
+		,	ALL_ON & ~SUB_ON
+		,	ALL_ON & ~UP_ON
+		,	ALL_ON & ~AVG_ON
+		,	ALL_ON & ~PAETH_ON
+		
+		//*
+		,	ALL_ON & ~SUB_ON & ~UP_ON
+		,	ALL_ON & ~AVG_ON & ~UP_ON
+		,	ALL_ON & ~AVG_ON & ~SUB_ON
+		//*/
+		};
+	
 	for( unsigned p=0; p<planes.size(); p++ )
-		for( unsigned iy=0; iy<planes[p].height; iy++ ){
-			//Try all the possibilities
-			AraLine best( NORMAL, iy, *this, p );
-			AraLine sub( SUB, iy, *this, p );
+		for( unsigned iy=0; iy<planes[p].height; iy+=amount ){
+			vector<Chunk> chunks;
 			
-			//Pick the one which has the smallest sum
-			if( sub.count < best.count )
-				best = sub;
+			for( auto types : enabled_types )
+				chunks.emplace_back( compress_lines_chunk( p, iy, amount, types ) );
 			
-			if( iy > 0 ){
-				AraLine up( UP, iy, *this, p );
-				AraLine avg( AVG, iy, *this, p );
-				AraLine paeth( PAETH, iy, *this, p );
-				
-				if( up.count < best.count )
-					best = up;
-				if( avg.count < best.count )
-					best = avg;
-				if( paeth.count < best.count )
-					best = paeth;
+			Chunk best;
+			unsigned size = -1;
+			for( auto chunk : chunks ){
+				auto data = depth > 8 ? packTo16bit( chunk.data ) : packTo8bit( chunk.data );
+				auto current = lzmaCompress( data ).size();
+				if( current < size ){
+					best = chunk;
+					size = current;
+				}
 			}
 			
 			//Write it out
-			types.push_back( best.type ); //TODO: temp
+			for( auto val : best.types )
+				types.push_back( val );
 			for( auto val : best.data )
 				out.push_back( val );
+			
+			cout << "Progress: " << iy << " of " << planes[p].height << " in plane " << p << endl;
 		}
 	
 	auto data = depth > 8 ? packTo16bit( out ) : packTo8bit( out );
@@ -533,7 +579,7 @@ AraImage::AraBlock::AraBlock( unsigned x, unsigned y, const AraImage& img, int p
 }
 
 AraImage::AraBlock AraImage::makeMulti( unsigned x, unsigned y, int plane, AraImage::Config config ) const{
-	AraBlock multi( MULTI, x, y, config.block_size, *this, plane );
+	AraBlock multi( MULTI, x, y, *this, plane, config.block_size );
 	config.block_size /= 2;
 	unsigned size = config.block_size;
 	

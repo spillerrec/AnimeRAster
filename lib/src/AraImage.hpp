@@ -163,7 +163,7 @@ class AraImage{
 				case NORMAL: return &AraImage::normal_predict;
 				case PREV: return &AraImage::prev_predict;
 				default:
-					std::cout << "getFilter(): Not an usable filter!" << std::endl;
+					std::cout << "getFilter(): Not an usable filter! " << t << std::endl;
 					return &AraImage::normal_predict;
 			}
 		};
@@ -240,8 +240,15 @@ class AraImage{
 		unsigned plane_width( int index ) const{ return width / (( sub_sampling == 1 && index != 0 ) ? 2 : 1); }
 		void read_lines( std::vector<uint8_t> types, std::vector<uint8_t> data, unsigned offset );
 		
+		struct Chunk{
+			std::vector<int> data;
+			std::vector<int> types;
+			std::vector<int> settings;
+		};
+		
 		std::vector<uint8_t> compress_none() const;
 		std::vector<uint8_t> compress_lines() const;
+		Chunk compress_lines_chunk( int plane, unsigned y, unsigned amount, int enabled_types ) const;
 		std::vector<uint8_t> compress_blocks( Config config ) const;
 };
 

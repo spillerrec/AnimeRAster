@@ -141,8 +141,6 @@ vector<uint8_t> lzmaCompress( const vector<uint8_t>& in ){
 	if( in.size() == 0 )
 		return in;
 	
-	cout << "Compressing: " << in.size() << endl;
-	
 	lzma_stream strm = LZMA_STREAM_INIT;
 	if( lzma_easy_encoder( &strm, 9 | LZMA_PRESET_EXTREME, LZMA_CHECK_CRC64 ) != LZMA_OK )
 		return vector<uint8_t>();
