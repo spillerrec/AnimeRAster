@@ -54,14 +54,14 @@ int AraImage::right_filter( int plane, unsigned x, unsigned y ) const{
 }
 
 int AraImage::up_filter( int plane, unsigned x, unsigned y ) const{
-	if( x == 0 )
+	if( y == 0 )
 		return normal_filter( plane, x ,y );
 	
 	return planes[plane].value( x, y ) - planes[plane].value( x, y-1 );
 }
 
 int AraImage::avg_filter( int plane, unsigned x, unsigned y ) const{
-	if( x == 0 )
+	if( x == 0 || y == 0 )
 		return up_filter( plane, x, y );
 	
 	int val = ( planes[plane].value( x, y-1 ) + planes[plane].value( x-1, y ) ) / 2;
@@ -78,7 +78,7 @@ int AraImage::prev_filter( int plane, unsigned x, unsigned y ) const{
 }
 
 int AraImage::paeth_filter( int plane, unsigned x, unsigned y ) const{
-	if( x == 0 )
+	if( x == 0 || y == 0 )
 		return up_filter( plane, x, y );
 	
 	auto r = planes[plane].value( x, y );
@@ -115,13 +115,13 @@ int AraImage::sub_defilter( int plane, unsigned x, unsigned y ) const{
 }
 
 int AraImage::up_defilter( int plane, unsigned x, unsigned y ) const{
-	if( x == 0 )
+	if( y == 0 )
 		return normal_defilter( plane, x,y );
 	return planes[plane].value( x, y-1 );
 }
 
 int AraImage::avg_defilter( int plane, unsigned x, unsigned y ) const{
-	if( x == 0 )
+	if( x == 0 || y == 0 )
 		return up_defilter( plane, x, y );
 	return ( planes[plane].value( x, y-1 ) + planes[plane].value( x-1, y ) ) / 2;
 }
@@ -687,24 +687,22 @@ AraImage::AraBlock AraImage::best_block( unsigned x, unsigned y, int plane, AraI
 			best = right;
 	}
 	
-	if( y > 0 ){
-		if( types & UP_ON ){
-			AraBlock up( UP, x, y, config.block_size, *this, plane, &AraImage::up_filter );
-			if( weight(up) < weight(best) )
-				best = up;
-		}
-		
-		if( types & AVG_ON ){
-			AraBlock avg( AVG, x, y, config.block_size, *this, plane, &AraImage::avg_filter );
-			if( weight(avg) < weight(best) )
-				best = avg;
-		}
-		
-		if( types & PAETH_ON ){
-			AraBlock paeth( PAETH, x, y, config.block_size, *this, plane, &AraImage::paeth_filter );
-			if( weight(paeth) < weight(best) )
-				best = paeth;
-		}
+	if( types & UP_ON ){
+		AraBlock up( UP, x, y, config.block_size, *this, plane, &AraImage::up_filter );
+		if( weight(up) < weight(best) )
+			best = up;
+	}
+	
+	if( types & AVG_ON ){
+		AraBlock avg( AVG, x, y, config.block_size, *this, plane, &AraImage::avg_filter );
+		if( weight(avg) < weight(best) )
+			best = avg;
+	}
+	
+	if( types & PAETH_ON ){
+		AraBlock paeth( PAETH, x, y, config.block_size, *this, plane, &AraImage::paeth_filter );
+		if( weight(paeth) < weight(best) )
+			best = paeth;
 	}
 	
 	return best;
