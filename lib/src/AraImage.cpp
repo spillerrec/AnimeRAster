@@ -247,6 +247,11 @@ bool AraImage::read( QIODevice &dev ){
 				read_lines( types, data, lines );
 				break;
 			};
+			
+		case BLOCKS:{
+				read_blocks( data );
+				break;
+			};
 		
 		default: cout << "Can't decompress! " << compression << endl;
 	};
@@ -274,6 +279,84 @@ void AraImage::read_lines( vector<uint8_t> types, vector<uint8_t> data, unsigned
 			}
 		}
 		
+	}
+}
+
+void AraImage::read_blocks( int plane
+	,	unsigned width, unsigned height, unsigned x, unsigned y
+	,	vector<uint8_t> data, unsigned& pos
+	,	vector<uint8_t> types, unsigned& type_pos
+	,	unsigned block_size ){
+	
+	unsigned blocks = ceil( width / (double)block_size ) * ceil( height / (double)block_size );
+	unsigned limit = pow( 2, depth );
+	
+	unsigned ix=x, iy=y;
+	for( unsigned b=0; b<blocks; b++ ){
+	//	cout << ix << "x" << iy << endl;
+		auto type = types[type_pos++];
+	//	cout << "Type: "  << (int)type << endl;
+		if( type == MULTI )
+			read_blocks( plane, block_size, block_size, ix, iy, data, pos, types, type_pos, block_size/2 );
+		else{
+		//	int dx=0, dy=0; //Diff later...
+			auto f = getFilter( (Type)type );
+			
+			//Truncate sizes to not go out of the plane
+			unsigned b_w = min( ix+block_size, plane_width(plane) );
+			unsigned b_h = min( iy+block_size, plane_height(plane) );
+			
+			for( unsigned jy=iy; jy < b_h; jy++ )
+				for( unsigned jx=ix; jx < b_w; jx++ ){
+				//	cout << "j: " << jx << "x" << jy << endl;
+					unsigned val = data[pos++] + (this->*f)( plane, jx, jy );
+					planes[plane].setValue( jx, jy, val % limit );
+				}
+		}
+		
+		//Update position
+		ix += block_size;
+		if( ix >= width ){
+			ix = x;
+			iy += block_size;
+		}
+	}
+	
+}
+
+void AraImage::read_blocks( vector<uint8_t> data ){
+	unsigned pos = 0;
+	
+	unsigned block_size = data[pos++];
+	cout << "Block size: " << block_size << endl;
+	vector<uint8_t> types;
+	vector<uint8_t> settings;
+	
+	unsigned blocks_count = 0;
+	for( unsigned p=0; p<plane_amount(); p++ )
+		blocks_count += ceil( plane_width(p) / (double)block_size ) * ceil( plane_height(p) / (double)block_size );
+	cout << "Block amount: " << blocks_count << endl;
+	
+	unsigned settings_count = 0;
+	for( unsigned i=0; i<blocks_count; i++ ){
+		auto type = data[pos++];
+		if( type == MULTI )
+			blocks_count += 4;
+		if( type == DIFF )
+			settings_count += 2;
+		types.push_back( type );
+	}
+	cout << "Current pos: " << pos << endl;
+	
+	for( unsigned i=0; i<settings_count; i++ )
+		settings.push_back( data[pos++] );
+	
+	unsigned type_pos = 0;
+	unsigned settings_pos = 0;
+	vector<unsigned> decrease_size;
+	for( unsigned p=0; p<plane_amount(); p++ ){
+		planes.push_back( AraPlane( plane_width(p), plane_height(p) ) );
+		read_blocks( p, plane_width(p), plane_height(p), 0,0, data, pos, types, type_pos, block_size );
 	}
 }
 
@@ -474,7 +557,7 @@ vector<uint8_t> AraImage::compress_lines() const{
 
 vector<uint8_t> AraImage::compress_blocks( Config config ) const{
 	vector<int> out;
-	vector<uint8_t> types;
+	vector<uint8_t> types{ config.block_size };
 	vector<uint8_t> settings;
 	
 	for( unsigned p=0; p<planes.size(); p++ )
@@ -498,26 +581,30 @@ vector<uint8_t> AraImage::compress_blocks( Config config ) const{
 			}
 		}
 	
-	vector<uint8_t> data;
+	vector<uint8_t> packed;
 	if( depth > 8 )
-		data = packTo16bit( out );
+		packed = packTo16bit( out );
 	else
-		data = packTo8bit( out );
+		packed = packTo8bit( out );
 	
 //	cout << "count size: " << lzmaCompress( data ).size() << " - ?" << endl;
 //	cout << "\ttypes size:    " << lzmaCompress( types ).size() << "\t - " << types.size() << endl;
 //	cout << "\tsettings size: " << lzmaCompress( settings ).size() << "\t - " << settings.size() << endl;
 	
+	vector<uint8_t> data;
 	//Add settings
 	if( config.save_settings ){
 	//	cout << "Types size: " << types.size() << endl;
 	//	cout << "Settings size: " << settings.size() << endl;
 	
-		for( auto set : settings )
-			data.push_back( set );
 		for( auto type : types )
 			data.push_back( type );
+		for( auto set : settings )
+			data.push_back( set );
 	}
+	
+	for( auto pack : packed )
+		data.push_back( pack );
 	
 	return data;
 }

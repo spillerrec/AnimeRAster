@@ -97,7 +97,7 @@ class AraImage{
 		void initFromDump( std::vector<DumpPlane> dumps );
 		
 		bool read( QIODevice &dev );
-		bool write( QIODevice &dev, Compression level=LINES );
+		bool write( QIODevice &dev, Compression level=BLOCKS );
 		
 		QImage outputPlanes() const;
 		
@@ -130,8 +130,8 @@ class AraImage{
 		};
 		
 		struct Config{
-			unsigned block_size;
-			unsigned min_block_size;
+			uint8_t block_size;
+			uint8_t min_block_size;
 			unsigned search_size;
 			EnabledTypes types;
 			double multi_penalty;
@@ -239,6 +239,13 @@ class AraImage{
 		unsigned plane_height( int index ) const{ return height / (( sub_sampling == 1 && index != 0 ) ? 2 : 1); }
 		unsigned plane_width( int index ) const{ return width / (( sub_sampling == 1 && index != 0 ) ? 2 : 1); }
 		void read_lines( std::vector<uint8_t> types, std::vector<uint8_t> data, unsigned offset );
+		void read_block( int plane, unsigned y, unsigned amount, int enabled_types ) const;
+		void read_blocks( int plane
+			,	unsigned width, unsigned height, unsigned x, unsigned y
+			,	std::vector<uint8_t> data, unsigned& pos
+			,	std::vector<uint8_t> types, unsigned& type_pos
+			,	unsigned block_size );
+		void read_blocks( std::vector<uint8_t> data );
 		
 		struct Chunk{
 			std::vector<int> data;
