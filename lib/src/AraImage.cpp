@@ -889,93 +889,27 @@ AraImage::AraBlock AraImage::best_block( unsigned x, unsigned y, int plane, AraI
 	
 	AraBlock best( NORMAL, x, y, config.block_size, *this, plane );
 	
-	if( !(types & NORMAL_ON) )
-		best.count = INT_MAX;
-		
+	for( unsigned t=0; t<TYPE_COUNT-2; t++ ){
+		if( isTypeOn( t, types ) ){
+			if( !( typeIsRight( t ) && !config.both_directions ) ){
+				AraBlock block( (Type)t, x, y, config.block_size, *this, plane );
+				if( weight(block) < weight(best) )
+					best = block;
+			}
+		}
+	}
+	
+	
 	if( types & MULTI_ON ){
 		AraBlock multi = makeMulti( x, y, plane, config );
 		if( weight(multi) < weight(best) )
 			best = multi;
-	}
-		
-	if( types & PREV_ON ){
-		AraBlock prev( PREV, x, y, config.block_size, *this, plane );
-		if( weight(prev) < weight(best) )
-			best = prev;
 	}
 	
 	if( types & DIFF_ON ){
 		AraBlock diff( x, y, *this, plane, config );
 		if( weight(diff) < weight(best) )
 			best = diff;
-	}
-	
-	if( types & SUB_ON ){
-		AraBlock sub( SUB, x, y, config.block_size, *this, plane );
-		if( weight(sub) < weight(best) )
-			best = sub;
-	}
-	
-	if( types & RIGHT_ON && config.both_directions ){
-		AraBlock right( RIGHT, x, y, config.block_size, *this, plane );
-		if( weight(right) < weight(best) )
-			best = right;
-	}
-	
-	if( types & UP_ON ){
-		AraBlock up( UP, x, y, config.block_size, *this, plane );
-		if( weight(up) < weight(best) )
-			best = up;
-	}
-	
-	if( types & AVG_ON ){
-		AraBlock avg( AVG, x, y, config.block_size, *this, plane );
-		if( weight(avg) < weight(best) )
-			best = avg;
-	}
-	
-	if( types & AVG_RIGHT_ON && config.both_directions ){
-		AraBlock avg_right( AVG_RIGHT, x, y, config.block_size, *this, plane );
-		if( weight(avg_right) < weight(best) )
-			best = avg_right;
-	}
-	
-	/*
-	if( types & UP_RIGHT_ON && config.both_directions ){
-		AraBlock avg_right( UP_RIGHT, x, y, config.block_size, *this, plane );
-		if( weight(avg_right) < weight(best) )
-			best = avg_right;
-	}
-	
-	if( types & UP_LEFT_ON ){
-		AraBlock avg_right( UP_LEFT, x, y, config.block_size, *this, plane );
-		if( weight(avg_right) < weight(best) )
-			best = avg_right;
-	}
-	//*/
-	
-	if( types & STRANGE_ON ){
-		AraBlock avg_right( STRANGE, x, y, config.block_size, *this, plane );
-		if( weight(avg_right) < weight(best) )
-			best = avg_right;
-	}
-	
-	if( types & STRANGE_RIGHT_ON && config.both_directions ){
-		AraBlock avg_right( STRANGE_RIGHT, x, y, config.block_size, *this, plane );
-		if( weight(avg_right) < weight(best) )
-			best = avg_right;
-	}
-	
-	if( types & PAETH_RIGHT_ON && config.both_directions ){
-		AraBlock avg_right( STRANGE_RIGHT, x, y, config.block_size, *this, plane );
-		if( weight(avg_right) < weight(best) )
-			best = avg_right;
-	}
-	
-	if( types & PAETH_ON ){
-		AraBlock paeth( PAETH, x, y, config.block_size, *this, plane );
-		if( weight(paeth) < weight(best) )
-			best = paeth;
 	}
 	
 	return best;
@@ -991,7 +925,7 @@ std::vector<uint8_t> AraImage::make_optimal_configuration() const{
 	config.search_size = 4;
 	config.types = EnabledTypes(ALL_ON & ~DIFF_ON & ~PAETH_ON /*& ~RIGHT_ON*/ & ~PREV_ON );
 	config.multi_penalty = 0.1;
-	config.both_directions = true;
+	config.both_directions = false;
 	config.save_settings = true;
 	config.diff_save_offset = 0;
 	

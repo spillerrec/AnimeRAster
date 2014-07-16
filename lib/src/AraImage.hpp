@@ -170,7 +170,8 @@ class AraImage{
 		
 		,	PREV      = 0xC
 		,	MULTI     = 0xD
-		,	DIFF      = 0xE
+		,	DIFF       = 0xE
+		,	TYPE_COUNT = 0xF
 		};
 		
 		FilterFunc getFilter( Type t ) const{
@@ -193,6 +194,30 @@ class AraImage{
 					return &AraImage::normal_predict;
 			}
 		};
+		
+		bool typeIsRight( int t ) const{ return t >= RIGHT; } //TODO: this will not work if we reorder!
+		
+		bool isTypeOn( int t, EnabledTypes types ) const{
+			switch( t ){
+				case UP:            return types & ~UP_ON;
+				case SUB:           return types & ~SUB_ON;
+				case UP_LEFT:       return types & ~UP_LEFT_ON;
+				case AVG:           return types & ~AVG_ON;
+				case PAETH:         return types & ~PAETH_ON;
+				case RIGHT:         return types & ~RIGHT_ON;
+				case NORMAL:        return types & ~NORMAL_ON;
+				case PREV:          return types & ~PREV_ON;
+				case AVG_RIGHT:     return types & ~AVG_RIGHT_ON;
+				case UP_RIGHT:      return types & ~UP_RIGHT_ON;
+				case STRANGE:       return types & ~STRANGE_ON;
+				case STRANGE_RIGHT: return types & ~STRANGE_RIGHT_ON;
+				case PAETH_RIGHT:   return types & ~PAETH_RIGHT_ON;
+				
+				default:
+					std::cout << "typeIsRight(): N/A! " << t << std::endl;
+					return false;
+			};
+		}
 			
 		struct AraLine{
 			Type  type{ NORMAL };
