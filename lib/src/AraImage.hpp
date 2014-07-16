@@ -18,6 +18,7 @@
 #define ARA_IMAGE_HPP
 
 #include "dump/DumpPlane.hpp"
+#include "Entropy.hpp"
 
 #include <QFile>
 #include <QImage>
@@ -244,6 +245,7 @@ class AraImage{
 			std::vector<uint8_t> types;
 			std::vector<uint8_t> settings;
 			unsigned count{ 0 };
+			Entropy entropy;
 			
 			unsigned width;
 			unsigned height;
@@ -264,6 +266,7 @@ class AraImage{
 					for( unsigned ix=x; ix < x+width; ix++ ){
 						auto val = img.planes[plane].value( ix, iy ) - (img.*filter)( plane, ix, iy );
 						data.emplace_back( val );
+						entropy.add( val );
 						count += abs( val );
 					}
 			}
@@ -278,11 +281,11 @@ class AraImage{
 		double setting_log_weight{ 0.0 };
 		
 		double weight_setting( int setting ) const;
-		double weight( const AraBlock& block ) const;
+		double weight( const AraBlock& block, const Entropy& base ) const;
 		double weight( unsigned type_count, unsigned count, unsigned settings_count, double settings_sum ) const;
 			
-		AraBlock makeMulti( unsigned x, unsigned y, int plane, Config config ) const;
-		AraBlock best_block( unsigned x, unsigned y, int plane, Config config ) const;
+		AraBlock makeMulti( unsigned x, unsigned y, int plane, Config config, const Entropy& base ) const;
+		AraBlock best_block( unsigned x, unsigned y, int plane, Config config, const Entropy& base ) const;
 		std::vector<int> make_optimal( Config config ) const;
 		std::vector<uint8_t> make_optimal_configuration() const;
 		

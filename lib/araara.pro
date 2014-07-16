@@ -12,5 +12,5 @@ SOURCES += src/dump/DumpPlane.cpp
 HEADERS += src/zpaq/libzpaq.h
 SOURCES += src/zpaq/libzpaq.cpp
 
-HEADERS += src/AraImage.hpp src/transform.hpp
-SOURCES += src/AraImage.cpp src/transform.cpp src/main.cpp
+HEADERS += src/AraImage.hpp src/Entropy.hpp src/transform.hpp
+SOURCES += src/AraImage.cpp src/Entropy.cpp src/transform.cpp src/main.cpp

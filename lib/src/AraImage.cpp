@@ -605,13 +605,18 @@ vector<uint8_t> AraImage::compress_blocks( Config config ) const{
 	vector<uint8_t> types{ config.block_size };
 	vector<uint8_t> settings;
 	
+	Entropy entropy;
+	
 	for( unsigned p=0; p<planes.size(); p++ )
 		for( unsigned iy=0; iy<planes[p].height; iy+=config.block_size ){
 			vector<AraBlock> blocks;
 			
 			//Make blocks
-			for( unsigned ix=0; ix<planes[p].width; ix+=config.block_size )
-				blocks.emplace_back( best_block( ix, iy, p, config ) );
+			for( unsigned ix=0; ix<planes[p].width; ix+=config.block_size ){
+				auto block = best_block( ix, iy, p, config, entropy );
+				entropy.add( block.entropy );
+				blocks.emplace_back( block );
+			}
 			
 			//Output
 			for( auto block : blocks )
@@ -666,7 +671,7 @@ AraImage::Chunk AraImage::compress_blocks_sub( unsigned p
 		
 		//Make blocks
 		for( unsigned ix=x; ix<planes[p].width; ix+=config.block_size )
-			blocks.emplace_back( best_block( ix, iy, p, config ) );
+			blocks.emplace_back( best_block( ix, iy, p, config, Entropy() ) );
 		
 		//Output
 		for( auto block : blocks )
@@ -820,7 +825,7 @@ AraImage::AraBlock::AraBlock( unsigned x, unsigned y, const AraImage& img, int p
 	settings.push_back( (int)y-(int)by + config.diff_save_offset );
 }
 
-AraImage::AraBlock AraImage::makeMulti( unsigned x, unsigned y, int plane, AraImage::Config config ) const{
+AraImage::AraBlock AraImage::makeMulti( unsigned x, unsigned y, int plane, AraImage::Config config, const Entropy& base ) const{
 	AraBlock multi( MULTI, x, y, *this, plane, config.block_size );
 	config.block_size /= 2;
 	unsigned size = config.block_size;
@@ -834,10 +839,10 @@ AraImage::AraBlock AraImage::makeMulti( unsigned x, unsigned y, int plane, AraIm
 	
 	//Find the best one for each four pieces
 	vector<AraBlock> blocks;
-	blocks.emplace_back( best_block( x,      y,      plane, config ) );
-	blocks.emplace_back( best_block( x+size, y,      plane, config ) );
-	blocks.emplace_back( best_block( x,      y+size, plane, config ) );
-	blocks.emplace_back( best_block( x+size, y+size, plane, config ) );
+	blocks.emplace_back( best_block( x,      y,      plane, config, base ) );
+	blocks.emplace_back( best_block( x+size, y,      plane, config, base ) );
+	blocks.emplace_back( best_block( x,      y+size, plane, config, base ) );
+	blocks.emplace_back( best_block( x+size, y+size, plane, config, base ) );
 	
 	//Combine all data into one block
 	for( auto block : blocks )
@@ -867,7 +872,10 @@ double AraImage::weight_setting( int setting ) const{
 	return val * val;
 }
 
-double AraImage::weight( const AraImage::AraBlock& block ) const{
+double AraImage::weight( const AraImage::AraBlock& block, const Entropy& base ) const{
+	return block.count;
+//	return base.entropy( block.entropy );
+	
 	double settings_sum = 0.0;
 	for( auto setting : block.settings )
 		settings_sum += weight_setting( setting );
@@ -884,7 +892,7 @@ double AraImage::weight( unsigned type_count, unsigned count, unsigned settings_
 		+	settings_sum;
 }
 
-AraImage::AraBlock AraImage::best_block( unsigned x, unsigned y, int plane, AraImage::Config config ) const{
+AraImage::AraBlock AraImage::best_block( unsigned x, unsigned y, int plane, AraImage::Config config, const Entropy& base ) const{
 	auto types = config.types;
 	
 	AraBlock best( NORMAL, x, y, config.block_size, *this, plane );
@@ -893,24 +901,25 @@ AraImage::AraBlock AraImage::best_block( unsigned x, unsigned y, int plane, AraI
 		if( isTypeOn( t, types ) ){
 			if( !( typeIsRight( t ) && !config.both_directions ) ){
 				AraBlock block( (Type)t, x, y, config.block_size, *this, plane );
-				if( weight(block) < weight(best) )
+				if( weight(block, base) < weight(best, base) )
 					best = block;
 			}
 		}
 	}
 	
-	
+	/*
 	if( types & MULTI_ON ){
-		AraBlock multi = makeMulti( x, y, plane, config );
-		if( weight(multi) < weight(best) )
+		AraBlock multi = makeMulti( x, y, plane, config, base );
+		if( weight(multi, base) < weight(best, base) )
 			best = multi;
 	}
 	
 	if( types & DIFF_ON ){
 		AraBlock diff( x, y, *this, plane, config );
-		if( weight(diff) < weight(best) )
+		if( weight(diff, base) < weight(best, base) )
 			best = diff;
 	}
+	*/
 	
 	return best;
 }
