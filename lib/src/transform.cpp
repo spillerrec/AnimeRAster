@@ -16,8 +16,11 @@
 
 #include "transform.hpp"
 
+#include "zpaq/libzpaq.h"
 #include <lzma.h>
 
+#include <cstdlib>
+#include <cstring>
 #include <iostream>
 
 using namespace std;
@@ -98,10 +101,29 @@ vector<uint8_t> reorder16bit( const vector<uint8_t>& in ){
 	return out;
 }
 
+#include <iostream>
+#include <chrono>
+
+// https://gist.github.com/gongzhitaao/7062087
+class Timer {
+	public:
+		Timer() : beg_( clock_::now() ) { }
+		void reset() { beg_ = clock_::now(); }
+		double elapsed() const { 
+			return std::chrono::duration_cast<second_>( clock_::now() - beg_ ).count();
+		}
+
+	private:
+		typedef std::chrono::high_resolution_clock clock_;
+		typedef std::chrono::duration<double, std::ratio<1> > second_;
+		std::chrono::time_point<clock_> beg_;
+};
+
 
 vector<uint8_t> lzmaDecompress( const vector<uint8_t>& in ){
 	vector<uint8_t> out;
 	
+	Timer t;
 	//Initialize decoder
 	lzma_stream strm = LZMA_STREAM_INIT;
 	if( lzma_stream_decoder( &strm, UINT64_MAX, 0 ) != LZMA_OK )
@@ -131,6 +153,7 @@ vector<uint8_t> lzmaDecompress( const vector<uint8_t>& in ){
 	}
 	
 	lzma_end(&strm);
+	cout << "lzma decompress took: " << t.elapsed() << endl;
 	
 	
 	return out;
@@ -166,6 +189,62 @@ vector<uint8_t> lzmaCompress( const vector<uint8_t>& in ){
 	lzma_end( &strm );
 	
 	return buf;
+}
+
+void libzpaq::error(const char* msg) {  // print message and exit
+	cout << "Oops: " << msg << endl;
+	exit( 1 );
+}
+
+class zpaqIn : public libzpaq::Reader {
+	private:
+		unsigned pos{ 0 };
+		const vector<uint8_t>& data;
+		
+	public:
+		zpaqIn( const vector<uint8_t>& data ) : data( data ) { }
+		
+		int read( char* buf, int n ){
+			unsigned amount = min( data.size() - pos, (vector<uint8_t>::size_type)n );
+			memcpy( buf, data.data()+pos, amount );
+			pos += amount;
+			return amount;
+		}
+		
+		int get(){ return pos < data.size() ? data[pos++] : -1; }
+};
+
+class zpaqOut : public libzpaq::Writer {
+	public:
+		vector<uint8_t> data;
+		
+		void write( char* buf, int n ){
+			unsigned pos = data.size();
+			data.resize( pos + n );
+			memcpy( data.data()+pos, buf, n );
+		}
+		
+		void put( int c ){ data.push_back( c ); }
+};
+
+vector<uint8_t> zpaqDecompress( const vector<uint8_t>& input ){
+	zpaqIn in( input );
+	zpaqOut out;
+	
+	Timer t;
+	libzpaq::decompress( &in, &out );
+	cout << "zpaq decompress took: " << t.elapsed() << endl;
+	
+	return out.data;
+}
+
+vector<uint8_t> zpaqCompress( const vector<uint8_t>& input ){
+	zpaqIn in( input );
+	zpaqOut out;
+	
+	libzpaq::compress( &in, &out, 3 );
+	
+	return out.data;
 }
 
 

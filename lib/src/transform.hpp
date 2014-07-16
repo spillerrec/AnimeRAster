@@ -32,6 +32,9 @@ std::vector<uint8_t> reorder16bit( const std::vector<uint8_t>& in );
 std::vector<uint8_t> lzmaDecompress( const std::vector<uint8_t>& in );
 std::vector<uint8_t> lzmaCompress( const std::vector<uint8_t>& in );
 
+std::vector<uint8_t> zpaqDecompress( const std::vector<uint8_t>& in );
+std::vector<uint8_t> zpaqCompress( const std::vector<uint8_t>& in );
+
 struct Statistics{
 	int min{ INT_MAX };
 	int max{ INT_MIN };
