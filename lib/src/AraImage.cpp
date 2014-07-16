@@ -57,6 +57,24 @@ int AraImage::avg_predict( int plane, unsigned x, unsigned y ) const{
 	return ( planes[plane].value( x, y-1 ) + planes[plane].value( x-1, y ) ) / 2;
 }
 
+int AraImage::avg_right_predict( int plane, unsigned x, unsigned y ) const{
+	if( x == planes[plane].width-1 || y == 0 )
+		return up_predict( plane, x, y );
+	return ( planes[plane].value( x, y-1 ) + planes[plane].value( x+1, y ) ) / 2;
+}
+
+int AraImage::up_right_predict( int plane, unsigned x, unsigned y ) const{
+	if( x == planes[plane].width-1 || y == 0 )
+		return up_predict( plane, x, y );
+	return planes[plane].value( x+1, y-1 );
+}
+
+int AraImage::up_left_predict( int plane, unsigned x, unsigned y ) const{
+	if( x == 0 || y == 0 )
+		return up_predict( plane, x, y );
+	return planes[plane].value( x-1, y-1 );
+}
+
 int AraImage::paeth_predict( int plane, unsigned x, unsigned y ) const{
 	if( x == 0 || y == 0 )
 		return up_predict( plane, x, y );
@@ -64,6 +82,27 @@ int AraImage::paeth_predict( int plane, unsigned x, unsigned y ) const{
 	auto a = planes[plane].value( x-1, y );
 	auto b = planes[plane].value( x, y-1 );
 	auto c = planes[plane].value( x-1, y-1 );
+	
+	auto p = a + b - c;
+	auto pa = abs( p - a );
+	auto pb = abs( p - b );
+	auto pc = abs( p - c );
+	
+	if( pa <= pb && pa <= pb )
+		return a;
+	else if( pb <= pc )
+		return b;
+	else
+		return c;
+}
+
+int AraImage::paeth_right_predict( int plane, unsigned x, unsigned y ) const{
+	if( x == planes[plane].width-1 || y == 0 )
+		return up_predict( plane, x, y );
+	
+	auto a = planes[plane].value( x+1, y );
+	auto b = planes[plane].value( x, y-1 );
+	auto c = planes[plane].value( x+1, y-1 );
 	
 	auto p = a + b - c;
 	auto pa = abs( p - a );
@@ -88,6 +127,34 @@ int AraImage::prev_predict( int plane, unsigned x, unsigned y ) const{
 	if( plane == 0 || x == 0 )
 		return normal_predict( plane, x, y );
 	return planes[plane-1].value( x-1, y );
+}
+
+int AraImage::strange_predict( int plane, unsigned x, unsigned y ) const{
+	if( x == 0 || y == 0 )
+		return up_predict( plane, x, y );
+	
+	auto a = planes[plane].value( x-1, y );
+	auto b = planes[plane].value( x, y-1 );
+	auto c = planes[plane].value( x-1, y-1 );
+	
+	if( a < b && b < c )
+		return paeth_predict( plane, x, y );
+	else
+		return a + b - c;
+}
+
+int AraImage::strange_right_predict( int plane, unsigned x, unsigned y ) const{
+	if( x == planes[plane].width-1 || y == 0 )
+		return up_predict( plane, x, y );
+	
+	auto a = planes[plane].value( x+1, y );
+	auto b = planes[plane].value( x, y-1 );
+	auto c = planes[plane].value( x+1, y-1 );
+	
+	if( a < b && b < c )
+		return paeth_right_predict( plane, x, y );
+	else
+		return a + b - c;
 }
 
 int AraImage::diff_predict( int plane, unsigned x, unsigned y, int dx, int dy ) const{
@@ -227,6 +294,7 @@ bool AraImage::read( QIODevice &dev ){
 	dev.read( (char*)buf.data(), buf.size() );
 	
 	auto data = lzmaDecompress( buf );
+//	auto data = zpaqDecompress( buf );
 	
 	//TODO: read data
 	unsigned lines = 0;
@@ -264,6 +332,8 @@ bool AraImage::read( QIODevice &dev ){
 void AraImage::read_lines( vector<uint8_t> types, vector<uint8_t> data, unsigned offset ){
 	planes.clear();
 	
+	debug_types( types );
+	
 	unsigned t = 0;
 	unsigned limit = pow( 2, depth );
 	
@@ -274,7 +344,7 @@ void AraImage::read_lines( vector<uint8_t> types, vector<uint8_t> data, unsigned
 			auto f = getFilter( (Type)types[t++] );
 			
 			for( unsigned ix=0; ix<planes[p].width; ix++ ){
-				unsigned val = data[offset++] + (this->*f)( p, ix, iy );
+				unsigned val = data[offset++] + 128;//(this->*f)( p, ix, iy );
 				planes[p].setValue( ix, iy, val % limit );
 			}
 		}
@@ -309,7 +379,7 @@ void AraImage::read_blocks( int plane
 			for( unsigned jy=iy; jy < b_h; jy++ )
 				for( unsigned jx=ix; jx < b_w; jx++ ){
 				//	cout << "j: " << jx << "x" << jy << endl;
-					unsigned val = data[pos++] + (this->*f)( plane, jx, jy );
+					unsigned val = data[pos++] + 128;// + (this->*f)( plane, jx, jy );
 					planes[plane].setValue( jx, jy, val % limit );
 				}
 		}
@@ -346,7 +416,7 @@ void AraImage::read_blocks( vector<uint8_t> data ){
 			settings_count += 2;
 		types.push_back( type );
 	}
-	cout << "Current pos: " << pos << endl;
+	debug_types( types );
 	
 	for( unsigned i=0; i<settings_count; i++ )
 		settings.push_back( data[pos++] );
@@ -383,32 +453,6 @@ bool AraImage::write( QIODevice &dev, Compression level ){
 	write32( dev, height );
 	writeFloat( dev, pixel_ratio );
 	
-	//Test stuff
-	auto copy = planes;
-	
-//	planes[0].asImage( depth ).save( "l-normal.png" );
-	
-//	planes[1].asImage( depth ).save( "u-normal.png" );
-//	planes[2].asImage( depth ).save( "v-normal.png" );
-	
-	/*
-	if( planes.size() == 3 ){
-		planes[0].data = offsetData( copy[0].data, invertData( copy[1].data ) );
-		planes[2].data = offsetData( copy[2].data, invertData( copy[1].data ) );
-		
-		planes[0] = center( planes[0] );
-		planes[2] = center( planes[2] );
-	}
-	*/
-//	outputPlanes().save( "test.png" );
-	
-	
-// Works well with RGB
-//	planes[1].data = offsetData( copy[1].data, invertData( copy[2].data ) );
-//	planes[2].data = offsetData( copy[2].data, invertData( copy[1].data ) );
-//	center( planes[1] ).asImage( depth ).save( "u-invert-diff-nooffset.png" );
-//	center( planes[2] ).asImage( depth ).save( "v-invert-diff-nooffset.png" );
-	
 	
 	//Generate output data
 	vector<uint8_t> data;
@@ -419,8 +463,9 @@ bool AraImage::write( QIODevice &dev, Compression level ){
 	};
 	
 	//Write compressed data
-//	auto out = data;//lzmaCompress( data );
+//	auto out = data;
 	auto out = lzmaCompress( data );
+//	auto out = zpaqCompress( data );
 	write32( dev, data_length = out.size() );
 	dev.write( (char*)out.data(), data_length );
 	
@@ -843,6 +888,7 @@ AraImage::AraBlock AraImage::best_block( unsigned x, unsigned y, int plane, AraI
 	auto types = config.types;
 	
 	AraBlock best( NORMAL, x, y, config.block_size, *this, plane );
+	
 	if( !(types & NORMAL_ON) )
 		best.count = INT_MAX;
 		
@@ -888,6 +934,44 @@ AraImage::AraBlock AraImage::best_block( unsigned x, unsigned y, int plane, AraI
 			best = avg;
 	}
 	
+	if( types & AVG_RIGHT_ON && config.both_directions ){
+		AraBlock avg_right( AVG_RIGHT, x, y, config.block_size, *this, plane );
+		if( weight(avg_right) < weight(best) )
+			best = avg_right;
+	}
+	
+	/*
+	if( types & UP_RIGHT_ON && config.both_directions ){
+		AraBlock avg_right( UP_RIGHT, x, y, config.block_size, *this, plane );
+		if( weight(avg_right) < weight(best) )
+			best = avg_right;
+	}
+	
+	if( types & UP_LEFT_ON ){
+		AraBlock avg_right( UP_LEFT, x, y, config.block_size, *this, plane );
+		if( weight(avg_right) < weight(best) )
+			best = avg_right;
+	}
+	//*/
+	
+	if( types & STRANGE_ON ){
+		AraBlock avg_right( STRANGE, x, y, config.block_size, *this, plane );
+		if( weight(avg_right) < weight(best) )
+			best = avg_right;
+	}
+	
+	if( types & STRANGE_RIGHT_ON && config.both_directions ){
+		AraBlock avg_right( STRANGE_RIGHT, x, y, config.block_size, *this, plane );
+		if( weight(avg_right) < weight(best) )
+			best = avg_right;
+	}
+	
+	if( types & PAETH_RIGHT_ON && config.both_directions ){
+		AraBlock avg_right( STRANGE_RIGHT, x, y, config.block_size, *this, plane );
+		if( weight(avg_right) < weight(best) )
+			best = avg_right;
+	}
+	
 	if( types & PAETH_ON ){
 		AraBlock paeth( PAETH, x, y, config.block_size, *this, plane );
 		if( weight(paeth) < weight(best) )
@@ -905,9 +989,9 @@ std::vector<uint8_t> AraImage::make_optimal_configuration() const{
 	config.block_size = 8;
 	config.min_block_size = 4;
 	config.search_size = 4;
-	config.types = EnabledTypes(ALL_ON & ~DIFF_ON & ~PAETH_ON & ~RIGHT_ON & ~PREV_ON );
+	config.types = EnabledTypes(ALL_ON & ~DIFF_ON & ~PAETH_ON /*& ~RIGHT_ON*/ & ~PREV_ON );
 	config.multi_penalty = 0.1;
-	config.both_directions = false;
+	config.both_directions = true;
 	config.save_settings = true;
 	config.diff_save_offset = 0;
 	
@@ -949,4 +1033,15 @@ std::vector<uint8_t> AraImage::make_optimal_configuration() const{
 				}
 	
 	return buf;
+}
+
+void AraImage::debug_types( vector<uint8_t> types ) const{
+	vector<unsigned> counts( 16, 0 );
+	
+	for( auto type : types )
+		counts[type]++;
+	
+	cout << "Types used:" << endl;
+	for( auto count : counts )
+		cout << "\t" << (int)count << endl;
 }

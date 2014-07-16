@@ -108,8 +108,14 @@ class AraImage{
 		int up_predict( int plane, unsigned x, unsigned y ) const;
 		int avg_predict( int plane, unsigned x, unsigned y ) const;
 		int paeth_predict( int plane, unsigned x, unsigned y ) const;
+		int paeth_right_predict( int plane, unsigned x, unsigned y ) const;
 		int right_predict( int plane, unsigned x, unsigned y ) const;
 		int prev_predict( int plane, unsigned x, unsigned y ) const;
+		int avg_right_predict( int plane, unsigned x, unsigned y ) const;
+		int up_right_predict( int plane, unsigned x, unsigned y ) const;
+		int up_left_predict( int plane, unsigned x, unsigned y ) const;
+		int strange_predict( int plane, unsigned x, unsigned y ) const;
+		int strange_right_predict( int plane, unsigned x, unsigned y ) const;
 		int diff_predict( int plane, unsigned x, unsigned y, int dx, int dy ) const;
 		
 		int diff_filter( int plane, unsigned x, unsigned y, int dx, int dy ) const{
@@ -126,6 +132,12 @@ class AraImage{
 		,	PAETH_ON = 0x40
 		,	RIGHT_ON = 0x80
 		,	PREV_ON = 0x100
+		,	AVG_RIGHT_ON = 0x200
+		,	UP_RIGHT_ON = 0x400
+		,	UP_LEFT_ON = 0x800
+		,	STRANGE_ON = 0x1000
+		,	STRANGE_RIGHT_ON = 0x2000
+		,	PAETH_RIGHT_ON = 0x4000
 		,	ALL_ON = 0xFFFF
 		};
 		
@@ -142,15 +154,23 @@ class AraImage{
 		};
 		
 		enum Type{
-			MULTI  = 0x0
-		,	DIFF  = 0x1
-		,	UP   = 0x2
-		,	SUB  = 0x3
-		,	AVG  = 0x4
-		,	PAETH = 0x5
-		,	RIGHT = 0x6
-		,	NORMAL = 0x7
-		,	PREV = 0x8
+			NORMAL    = 0x0
+		,	UP        = 0x1
+		,	SUB       = 0x2
+		,	UP_LEFT   = 0x3
+		,	AVG       = 0x4
+		,	PAETH     = 0x5
+		,	STRANGE   = 0x6
+		
+		,	RIGHT     = 0x7
+		,	UP_RIGHT  = 0x8
+		,	AVG_RIGHT = 0x9
+		,	PAETH_RIGHT   = 0xA
+		,	STRANGE_RIGHT   = 0xB
+		
+		,	PREV      = 0xC
+		,	MULTI     = 0xD
+		,	DIFF      = 0xE
 		};
 		
 		FilterFunc getFilter( Type t ) const{
@@ -162,6 +182,12 @@ class AraImage{
 				case RIGHT: return &AraImage::right_predict;
 				case NORMAL: return &AraImage::normal_predict;
 				case PREV: return &AraImage::prev_predict;
+				case AVG_RIGHT: return &AraImage::avg_right_predict;
+				case UP_RIGHT: return &AraImage::up_right_predict;
+				case UP_LEFT: return &AraImage::up_left_predict;
+				case STRANGE: return &AraImage::strange_predict;
+				case STRANGE_RIGHT: return &AraImage::strange_right_predict;
+				case PAETH_RIGHT: return &AraImage::paeth_right_predict;
 				default:
 					std::cout << "getFilter(): Not an usable filter! " << t << std::endl;
 					return &AraImage::normal_predict;
@@ -263,6 +289,8 @@ class AraImage{
 			,	int enabled_types, Config config
 			) const;
 		std::vector<uint8_t> compress_blocks_extreme( Config config ) const;
+		
+		void debug_types( std::vector<uint8_t> types ) const;
 };
 
 #endif
