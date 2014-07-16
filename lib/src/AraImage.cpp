@@ -609,6 +609,116 @@ vector<uint8_t> AraImage::compress_blocks( Config config ) const{
 	return data;
 }
 
+AraImage::Chunk AraImage::compress_blocks_sub( unsigned p
+	,	unsigned x, unsigned y, unsigned amount
+	,	int enabled_types, AraImage::Config config
+	) const{
+	Chunk chunk;
+	config.types = (EnabledTypes)enabled_types;
+	
+	for( unsigned iy=y; iy<min(y+config.block_size*amount, planes[p].height); iy+=config.block_size ){
+		vector<AraBlock> blocks;
+		
+		//Make blocks
+		for( unsigned ix=x; ix<planes[p].width; ix+=config.block_size )
+			blocks.emplace_back( best_block( ix, iy, p, config ) );
+		
+		//Output
+		for( auto block : blocks )
+			for( auto data : block.data )
+				chunk.data.push_back( data );
+		
+		for( auto block : blocks ){
+			for( auto type : block.types )
+				chunk.types.push_back( type );
+			for( auto set : block.settings )
+				chunk.settings.push_back( set );
+		}
+	}
+	
+	return chunk;
+}
+
+vector<uint8_t> AraImage::compress_blocks_extreme( AraImage::Config config ) const{
+	vector<int> out;
+	vector<uint8_t> types{ config.block_size };
+	vector<uint8_t> settings;
+	
+	unsigned amount = 1;
+	auto base = config.types;
+	vector<int> enabled_types{
+		//*
+			base & ~AVG_ON & ~SUB_ON
+		,	base & ~AVG_ON & ~UP_ON
+		,	base & ~SUB_ON & ~UP_ON
+		//*/
+		
+		,	base & ~PAETH_ON
+		,	base & ~AVG_ON
+		,	base & ~UP_ON
+		,	base & ~SUB_ON
+		,	base & ~DIFF_ON
+		,	base & ~NORMAL_ON
+		
+		,	base
+		};
+	
+	for( unsigned p=0; p<planes.size(); p++ )
+		for( unsigned iy=0; iy<planes[p].height; iy+=config.block_size*amount ){
+			Chunk best;
+			unsigned best_size = -1;
+			cout << "Line: " << iy << endl;
+			for( auto t : enabled_types ){
+				auto chunk = compress_blocks_sub( p, 0, iy, amount, t, config );
+				
+				vector<uint8_t> packed;
+				if( depth > 8 )
+					packed = packTo16bit( chunk.data );
+				else
+					packed = packTo8bit( chunk.data );
+				auto new_size = lzmaCompress( packed ).size();
+				if( new_size < best_size ){
+					best_size = new_size;
+			//		cout << "Picking new best chunk" << best_size << endl;
+					best = chunk;
+				}
+			//	else if( new_size == best_size )
+			//		cout << "Same Size" << endl;
+			}
+			
+			//Output
+			for( auto data : best.data )
+				out.push_back( data );
+			for( auto type : best.types )
+				types.push_back( type );
+			for( auto set : best.settings )
+				settings.push_back( set );
+		}
+	
+	vector<uint8_t> packed;
+	if( depth > 8 )
+		packed = packTo16bit( out );
+	else
+		packed = packTo8bit( out );
+	
+	vector<uint8_t> data;
+	//Add settings
+	if( config.save_settings ){
+	//	cout << "Types size: " << types.size() << endl;
+	//	cout << "Settings size: " << settings.size() << endl;
+	
+		for( auto type : types )
+			data.push_back( type );
+		for( auto set : settings )
+			data.push_back( set );
+	}
+	
+	for( auto pack : packed )
+		data.push_back( pack );
+	
+	return data;
+}
+
 unsigned offset_dif( unsigned x, unsigned y, int dx, int dy, unsigned width, unsigned height, const AraImage& img, int plane ){
 	unsigned count = 0;
 	for( unsigned iy=y; iy < y+height; iy++ )
@@ -802,7 +912,7 @@ std::vector<uint8_t> AraImage::make_optimal_configuration() const{
 	config.diff_save_offset = 0;
 	
 		//Try several settings, and use best one
-		for( unsigned i=4; i<=16; i*=2 )
+		for( unsigned i=8; i<=8; i*=2 )
 			for( unsigned j=i; j>=i; j/=2 )
 				for( unsigned k=2; k<=2; k*=2 )
 //				for( double m=0.00; m<1.5; m+=0.25 )
@@ -818,10 +928,11 @@ std::vector<uint8_t> AraImage::make_optimal_configuration() const{
 					config.multi_penalty = l;
 					config.search_size = k;
 			
+				//	auto data = compress_blocks_extreme( config );
 					auto data = compress_blocks( config );
 					auto current = lzmaCompress( data );
 					
-					cout << "Result: " << config.block_size << "-" << config.min_block_size << ": \t" << current.size();
+					cout << "Result: " << (int)config.block_size << "-" << (int)config.min_block_size << ": \t" << current.size();
 					if( current.size() < best.size() || best.size() == 0 ){
 						best = current;
 						buf = data;

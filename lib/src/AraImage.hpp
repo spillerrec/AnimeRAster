@@ -257,6 +257,12 @@ class AraImage{
 		std::vector<uint8_t> compress_lines() const;
 		Chunk compress_lines_chunk( int plane, unsigned y, unsigned amount, int enabled_types ) const;
 		std::vector<uint8_t> compress_blocks( Config config ) const;
+		
+		Chunk compress_blocks_sub( unsigned p
+			,	unsigned x, unsigned y, unsigned amount
+			,	int enabled_types, Config config
+			) const;
+		std::vector<uint8_t> compress_blocks_extreme( Config config ) const;
 };
 
 #endif
