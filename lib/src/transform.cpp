@@ -16,7 +16,9 @@
 
 #include "transform.hpp"
 
-#include "zpaq/libzpaq.h"
+#ifdef win32
+	#include "zpaq/libzpaq.h"
+#endif
 #include <lzma.h>
 
 #include <cstdlib>
@@ -191,6 +193,8 @@ vector<uint8_t> lzmaCompress( const vector<uint8_t>& in ){
 	return buf;
 }
 
+#ifdef win32
+
 void libzpaq::error(const char* msg) {  // print message and exit
 	cout << "Oops: " << msg << endl;
 	exit( 1 );
@@ -246,6 +250,7 @@ vector<uint8_t> zpaqCompress( const vector<uint8_t>& input ){
 	
 	return out.data;
 }
+#endif
 
 
 Statistics statistics( const std::vector<int>& data ){

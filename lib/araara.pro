@@ -8,9 +8,29 @@ LIBS += -lz -llzma
 HEADERS += src/dump/DumpPlane.hpp
 SOURCES += src/dump/DumpPlane.cpp
 
-# libzpaq
-HEADERS += src/zpaq/libzpaq.h
-SOURCES += src/zpaq/libzpaq.cpp
+win32{
+	# libzpaq
+	HEADERS += src/zpaq/libzpaq.h
+	SOURCES += src/zpaq/libzpaq.cpp
+}
 
 HEADERS += src/AraImage.hpp src/Entropy.hpp src/transform.hpp
 SOURCES += src/AraImage.cpp src/Entropy.cpp src/transform.cpp src/main.cpp
+
+
+
+# Generate both debug and release on Linux (disabled)
+CONFIG += debug_and_release
+
+# Position of binaries and build files
+Release:DESTDIR = release
+Release:UI_DIR = release/.ui
+Release:OBJECTS_DIR = release/.obj
+Release:MOC_DIR = release/.moc
+Release:RCC_DIR = release/.qrc
+
+Debug:DESTDIR = debug
+Debug:UI_DIR = debug/.ui
+Debug:OBJECTS_DIR = debug/.obj
+Debug:MOC_DIR = debug/.moc
+Debug:RCC_DIR = debug/.qrc
