@@ -162,6 +162,11 @@ int AraImage::diff_predict( int plane, unsigned x, unsigned y, int dx, int dy ) 
 }
 
 
+int AraImage::color_predict( int p1, int p2, unsigned x, unsigned y ) const{
+	return planes[p1].value( x, y ) - planes[p2].value( x, y );
+}
+
+
 
 
 static uint8_t read8( QIODevice &dev ){
@@ -778,6 +783,34 @@ unsigned offset_dif( unsigned x, unsigned y, int dx, int dy, unsigned width, uns
 	return count;
 }
 
+
+AraImage::AraBlock::AraBlock( AraImage::Type t, unsigned x, unsigned y, unsigned size
+	, const AraImage& img, int plane )
+	:	AraBlock( t, x, y, img, plane, size ) {
+	auto filter = img.getFilter( t );
+	for( unsigned iy=y; iy < y+height; iy++ )
+		for( unsigned ix=x; ix < x+width; ix++ ){
+			auto val = img.planes[plane].value( ix, iy ) - (img.*filter)( plane, ix, iy );
+			data.emplace_back( val );
+			entropy.add( val );
+			count += abs( val );
+		}
+	
+	//Color decorrelation
+	if( img.channels == RGB && plane != 1 ){ //TODO: do properly
+		entropy = Entropy();
+		count = 0;
+		data.clear();
+		for( unsigned iy=y; iy < y+height; iy++ )
+			for( unsigned ix=x; ix < x+width; ix++ ){
+				auto val = img.planes[1].value( ix, iy ) - (img.*filter)( 1, ix, iy );
+				val -= img.planes[plane].value( ix, iy ) - (img.*filter)( plane, ix, iy );
+				data.emplace_back( val );
+				entropy.add( val );
+				count += abs( val );
+			}
+	}
+}
 
 
 AraImage::AraBlock::AraBlock( unsigned x, unsigned y, const AraImage& img, int plane, AraImage::Config config )
