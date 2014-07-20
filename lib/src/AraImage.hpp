@@ -19,6 +19,7 @@
 
 #include "dump/DumpPlane.hpp"
 #include "Entropy.hpp"
+#include "transform.hpp"
 
 #include <QFile>
 #include <QImage>
@@ -288,6 +289,25 @@ class AraImage{
 			AraBlock( Type t, unsigned x, unsigned y, unsigned size, const AraImage& img, int plane );
 			
 			AraBlock( unsigned x, unsigned y, const AraImage& img, int plane, Config config );
+			
+			static AraBlock subtract( AraBlock b1, AraBlock b2 ){
+				auto b = b1;
+				b1.data = offsetData( b1.data, invertData( b2.data ) );
+				return b;
+			}
+		};
+		
+		struct AraColorBlock{
+			Type type{ NORMAL };
+			CType ctype;
+			std::vector<int> data_1;
+			std::vector<int> data_2;
+			std::vector<int> data_3;
+			unsigned count{ 0 };
+			Entropy entropy;
+			double weight;
+			
+			AraColorBlock( const AraImage& img, Type t, unsigned x, unsigned y, unsigned size, const Entropy& base );
 		};
 		
 		
@@ -302,6 +322,7 @@ class AraImage{
 			
 		AraBlock makeMulti( unsigned x, unsigned y, int plane, Config config, const Entropy& base ) const;
 		AraBlock best_block( unsigned x, unsigned y, int plane, Config config, const Entropy& base ) const;
+		AraColorBlock bestColorBlock( unsigned x, unsigned y, Config config, const Entropy& base ) const;
 		std::vector<int> make_optimal( Config config ) const;
 		std::vector<uint8_t> make_optimal_configuration() const;
 		
@@ -327,6 +348,7 @@ class AraImage{
 		std::vector<uint8_t> compress_lines() const;
 		Chunk compress_lines_chunk( int plane, unsigned y, unsigned amount, int enabled_types ) const;
 		std::vector<uint8_t> compress_blocks( Config config ) const;
+		std::vector<uint8_t> compressColorBlocks( Config config ) const;
 		
 		Chunk compress_blocks_sub( unsigned p
 			,	unsigned x, unsigned y, unsigned amount

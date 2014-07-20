@@ -606,6 +606,9 @@ vector<uint8_t> AraImage::compress_lines() const{
 }
 
 vector<uint8_t> AraImage::compress_blocks( Config config ) const{
+	if( channels == RGB )
+		return compressColorBlocks( config );
+	
 	vector<int> out;
 	vector<uint8_t> types{ config.block_size };
 	vector<uint8_t> settings;
@@ -635,6 +638,63 @@ vector<uint8_t> AraImage::compress_blocks( Config config ) const{
 					settings.push_back( set );
 			}
 		}
+	
+	vector<uint8_t> packed;
+	if( depth > 8 )
+		packed = packTo16bit( out );
+	else
+		packed = packTo8bit( out );
+	
+//	cout << "count size: " << lzmaCompress( data ).size() << " - ?" << endl;
+//	cout << "\ttypes size:    " << lzmaCompress( types ).size() << "\t - " << types.size() << endl;
+//	cout << "\tsettings size: " << lzmaCompress( settings ).size() << "\t - " << settings.size() << endl;
+	
+	vector<uint8_t> data;
+	//Add settings
+	if( config.save_settings ){
+	//	cout << "Types size: " << types.size() << endl;
+	//	cout << "Settings size: " << settings.size() << endl;
+	
+		for( auto type : types )
+			data.push_back( type );
+		for( auto set : settings )
+			data.push_back( set );
+	}
+	
+	for( auto pack : packed )
+		data.push_back( pack );
+	
+	return data;
+}
+
+vector<uint8_t> AraImage::compressColorBlocks( Config config ) const{
+	vector<int> out, out2, out3;
+	vector<uint8_t> types{ config.block_size };
+	vector<uint8_t> settings;
+	
+	Entropy entropy;
+	
+	for( unsigned iy=0; iy<height; iy+=config.block_size ){
+		cout << "line: " << iy << endl;
+		for( unsigned ix=0; ix<width; ix+=config.block_size ){
+			auto block = bestColorBlock( ix, iy, config, entropy );
+			entropy.add( block.entropy );
+			
+			for( auto data : block.data_1 )
+				out.push_back( data );
+			for( auto data : block.data_2 )
+				out2.push_back( data );
+			for( auto data : block.data_3 )
+				out3.push_back( data );
+			types.push_back( block.type );
+			settings.push_back( block.ctype );
+		}
+	}
+	
+	for( auto data : out2 )
+		out.push_back( data );
+	for( auto data : out2 )
+		out.push_back( data );
 	
 	vector<uint8_t> packed;
 	if( depth > 8 )
@@ -957,6 +1017,24 @@ AraImage::AraBlock AraImage::best_block( unsigned x, unsigned y, int plane, AraI
 	return best;
 }
 
+AraImage::AraColorBlock AraImage::bestColorBlock( unsigned x, unsigned y, AraImage::Config config, const Entropy& base ) const{
+	auto types = config.types;
+	
+	AraColorBlock best( *this, NORMAL, x, y, config.block_size, base );
+	
+	for( unsigned t=0; t<TYPE_COUNT-2; t++ ){
+		if( isTypeOn( t, types ) ){
+			if( !( typeIsRight( t ) && !config.both_directions ) ){
+				AraColorBlock block( *this, (Type)t, x, y, config.block_size, base );
+				if( block.weight < best.weight )
+					best = block;
+			}
+		}
+	}
+	
+	return best;
+}
+
 std::vector<uint8_t> AraImage::make_optimal_configuration() const{
 	vector<uint8_t> best;
 	vector<uint8_t> buf;
@@ -1021,3 +1099,75 @@ void AraImage::debug_types( vector<uint8_t> types ) const{
 	for( auto count : counts )
 		cout << "\t" << (int)count << endl;
 }
+
+
+AraImage::AraColorBlock::AraColorBlock( const AraImage& img, Type t, unsigned x, unsigned y, unsigned size, const Entropy& base )
+	:	type(t) {
+	vector<AraBlock> blocks{ AraBlock( t, x, y, size, img, 0 )
+		,	AraBlock( t, x, y, size, img, 1 )
+		,	AraBlock( t, x, y, size, img, 2 )
+		};
+	
+	//Start with C___
+	double best = img.weight( blocks[0], base ) + img.weight( blocks[1], base ) + img.weight( blocks[2], base );
+	ctype = C___;
+	AraBlock out1( blocks[0] ), out2( blocks[1] ), out3( blocks[2] );
+	
+	//Main color iteration
+	for( int main=0; main<3; main++ ){
+		int second = ( main != 0 ) ? 0 : 1;
+		int third = ( main != 1 && second != 1 ) ? 1 : 2;
+		
+		double current = img.weight( blocks[main], base );
+		
+		// subtract main main
+		auto b_mm1 = AraBlock::subtract( blocks[second], blocks[main] );
+		auto b_mm2 = AraBlock::subtract( blocks[third], blocks[main] );
+		double w_mm = current + img.weight( b_mm1, base ) + img.weight( b_mm2, base );
+		if( w_mm < best ){
+			best = w_mm;
+			ctype = (CType)( main*3 + 1 );
+			out1 = blocks[main];
+			out2 = b_mm1;
+			out3 = b_mm2;
+		}
+		
+		// subtract main second
+		auto b_ms1 = AraBlock::subtract( blocks[second], blocks[main] );
+		auto b_ms2 = AraBlock::subtract( blocks[third], blocks[second] );
+		double w_ms = current + img.weight( b_ms1, base ) + img.weight( b_ms2, base );
+		if( w_ms < best ){
+			best = w_ms;
+			ctype = (CType)( main*3 + 2 );
+			out1 = blocks[main];
+			out2 = b_ms1;
+			out3 = b_ms2;
+		}
+		
+		// subtract third main
+		auto b_tm1 = AraBlock::subtract( blocks[second], blocks[third] );
+		auto b_tm2 = AraBlock::subtract( blocks[third], blocks[main] );
+		double w_tm = current + img.weight( b_tm1, base ) + img.weight( b_tm2, base );
+		if( w_tm < best ){
+			best = w_tm;
+			ctype = (CType)( main*3 + 3 );
+			out1 = blocks[main];
+			out2 = b_tm1;
+			out3 = b_tm2;
+		}
+	}
+	
+	//Set data
+	data_1 = out1.data;
+	data_2 = out2.data;
+	data_3 = out3.data;
+	
+	//Set statistics
+	count = out1.count + out2.count + out3.count;
+	entropy.add( out1.entropy );
+	entropy.add( out2.entropy );
+	entropy.add( out3.entropy );
+	weight = best;
+}
+
+
