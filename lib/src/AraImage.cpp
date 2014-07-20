@@ -400,10 +400,14 @@ void AraImage::read_blocks( int plane
 }
 
 void AraImage::read_blocks( vector<uint8_t> data ){
+	if( channels == RGB ){
+		readColorBlocks( data );
+		return;
+	}
+	
 	unsigned pos = 0;
 	
 	unsigned block_size = data[pos++];
-	cout << "Block size: " << block_size << endl;
 	vector<uint8_t> types;
 	vector<uint8_t> settings;
 	
@@ -433,6 +437,162 @@ void AraImage::read_blocks( vector<uint8_t> data ){
 		planes.push_back( AraPlane( plane_width(p), plane_height(p) ) );
 		read_blocks( p, plane_width(p), plane_height(p), 0,0, data, pos, types, type_pos, block_size );
 	}
+}
+
+int color_to_plane( int type, int plane ){
+	switch( type ){
+		case  0:
+		case  1:
+		case  2: return ( plane==0 ) ? 0 : ( plane==1 ) ? 1 : 2;
+		case  3: return ( plane==0 ) ? 0 : ( plane==1 ) ? 2 : 1;
+		case  4: 
+		case  5: return ( plane==0 ) ? 1 : ( plane==1 ) ? 0 : 2;
+		case  6: return ( plane==0 ) ? 1 : ( plane==1 ) ? 2 : 0;
+		case  7: 
+		case  8: return ( plane==0 ) ? 2 : ( plane==1 ) ? 0 : 1;
+		case  9: return ( plane==0 ) ? 2 : ( plane==1 ) ? 1 : 0;
+		default: return plane;
+	};
+	/*
+	if( type == 0 )
+		return plane;
+	
+	type -= 1;
+	int main = type / 3;
+	int second = ( main != 0 ) ? 0 : 1;
+	vector<int> planes{ main
+		,	second
+		,	( main != 1 && second != 1 ) ? 1 : 2
+	};
+	
+	if( ((type % 3) == 2) && (plane != 0) )
+		return ( plane == 1 ) ? planes[2] : second;
+	else
+		return planes[plane];
+	*/
+}
+
+int color_sub_plane( int type, int plane ){
+	switch( type ){
+		case  0: return ( plane==0 ) ? 0 : ( plane==1 ) ? 1 : 2;
+		case  1: return ( plane==0 ) ? 0 : ( plane==1 ) ? 0 : 0;
+		case  2: return ( plane==0 ) ? 0 : ( plane==1 ) ? 0 : 1;
+		case  3: return ( plane==0 ) ? 0 : ( plane==1 ) ? 2 : 0;
+		case  4: return ( plane==0 ) ? 1 : ( plane==1 ) ? 1 : 1;
+		case  5: return ( plane==0 ) ? 1 : ( plane==1 ) ? 1 : 0;
+		case  6: return ( plane==0 ) ? 2 : ( plane==1 ) ? 1 : 1;
+		case  7: return ( plane==0 ) ? 2 : ( plane==1 ) ? 2 : 2;
+		case  8: return ( plane==0 ) ? 2 : ( plane==1 ) ? 0 : 2;
+		case  9: return ( plane==0 ) ? 1 : ( plane==1 ) ? 0 : 2;
+		default: return plane;
+	};
+	
+	/*
+	if( type == 0 )
+		return plane; //No subtraction
+	
+	type -= 1;
+	int main = type / 3;
+	int second = ( main != 0 ) ? 0 : 1;
+	int third = ( main != 1 && second != 1 ) ? 1 : 2;
+//	cout << "123:   " << main << "-" << second << "-" << third << endl;
+	
+	switch( type % 3 ){
+		case 0: return main;
+		case 1: return ( plane <= 1 ) ? main : 1;
+		case 2: return ( plane == 1 ) ? 2 : main;
+		default:
+			cout << "color_to_plane: shit... " << type << " - " << plane << endl;
+			return plane;
+	}
+	*/
+}
+
+void AraImage::readColorBlocks( std::vector<uint8_t> data ){
+	unsigned pos = 0;
+	
+	unsigned block_size = data[pos++];
+	vector<uint8_t> types;
+	vector<uint8_t> colors;
+	
+	//Init variables
+	for( unsigned p=0; p<3; p++ )
+		planes.push_back( AraPlane( width, height ) );
+	unsigned limit = pow( 2, depth );
+	
+	//Load types and color information
+	unsigned blocks_count = ceil( width / (double)block_size ) * ceil( height / (double)block_size );
+	for( unsigned i=0; i<blocks_count; i++ )
+		types.push_back( data[pos++] );
+	for( unsigned i=0; i<blocks_count; i++ )
+		colors.push_back( data[pos++] );
+	
+	
+	//Read blocks
+	for( unsigned p=0; p<3; p++ ){
+		unsigned type_pos = 0, color_pos = 0;
+		for( unsigned iy=0; iy<height; iy+=block_size )
+			for( unsigned ix=0; ix<width; ix+=block_size ){
+				
+				//Truncate sizes to not go out of the plane
+				unsigned b_w = min( ix+block_size, width );
+				unsigned b_h = min( iy+block_size, height );
+				
+				auto color = colors[color_pos++];
+				unsigned plane = color_to_plane( color, p );
+				
+				for( unsigned jy=iy; jy < b_h; jy++ )
+					for( unsigned jx=ix; jx < b_w; jx++ )
+						planes[plane].setValue( jx, jy, data[pos++] );
+			}
+	}
+	
+	for( unsigned p=0; p<3; p++ ){
+		unsigned type_pos = 0, color_pos = 0;
+		
+		for( unsigned iy=0; iy<height; iy+=block_size )
+			for( unsigned ix=0; ix<width; ix+=block_size ){
+				auto type = types[type_pos++];
+				auto color = colors[color_pos++];
+			//	cout << ix << "x" << iy << endl;
+			//	cout << "Type: "  << (int)type << endl;
+				
+				//Translate settings
+				auto f = getFilter( (Type)type );
+				unsigned plane = p;//color_to_plane( color, p );
+				unsigned sub = color_sub_plane( color, plane );
+			//	if( color == 3*2+1 || color == 3*2+2 )
+			//		cout << "color_to_plane: shit... " << (int)color << " - " << plane << " - " << sub << endl;
+				
+				//Truncate sizes to not go out of the plane
+				unsigned b_w = min( ix+block_size, width );
+				unsigned b_h = min( iy+block_size, height );
+				
+				for( unsigned jy=iy; jy < b_h; jy++ )
+					for( unsigned jx=ix; jx < b_w; jx++ ){
+						
+						if( plane != sub ){
+							if( p < sub )
+								planes[plane].setValue( jx, jy, planes[plane].value( jx, jy ) + planes[sub].value( jx, jy ) );
+							else
+								planes[plane].setValue( jx, jy, planes[plane].value( jx, jy ) + planes[sub].value( jx, jy ) - (this->*f)( sub, jx, jy ) );
+						}
+						
+						int val =  planes[plane].value( jx, jy ) + (this->*f)( plane, jx, jy );
+						
+						/*
+						if( plane != sub ){
+							if( p < sub )
+								val += planes[sub].value( jx, jy );
+							else
+								val += planes[sub].value( jx, jy ) - (this->*f)( sub, jx, jy );
+						}
+						*/
+						planes[plane].setValue( jx, jy, unsigned(val) % limit );
+					}
+			}
+	}
+	
 }
 
 AraPlane center( AraPlane p ){
@@ -693,7 +853,7 @@ vector<uint8_t> AraImage::compressColorBlocks( Config config ) const{
 	
 	for( auto data : out2 )
 		out.push_back( data );
-	for( auto data : out2 )
+	for( auto data : out3 )
 		out.push_back( data );
 	
 	vector<uint8_t> packed;
@@ -856,6 +1016,7 @@ AraImage::AraBlock::AraBlock( AraImage::Type t, unsigned x, unsigned y, unsigned
 			count += abs( val );
 		}
 	
+	/*
 	//Color decorrelation
 	if( img.channels == RGB && plane != 1 ){ //TODO: do properly
 		entropy = Entropy();
@@ -870,6 +1031,7 @@ AraImage::AraBlock::AraBlock( AraImage::Type t, unsigned x, unsigned y, unsigned
 				count += abs( val );
 			}
 	}
+	*/
 }
 
 
@@ -1131,7 +1293,7 @@ AraImage::AraColorBlock::AraColorBlock( const AraImage& img, Type t, unsigned x,
 			out2 = b_mm1;
 			out3 = b_mm2;
 		}
-		
+		//*/
 		// subtract main second
 		auto b_ms1 = AraBlock::subtract( blocks[second], blocks[main] );
 		auto b_ms2 = AraBlock::subtract( blocks[third], blocks[second] );
@@ -1144,9 +1306,11 @@ AraImage::AraColorBlock::AraColorBlock( const AraImage& img, Type t, unsigned x,
 			out3 = b_ms2;
 		}
 		
+		//if( main > 0 )
+			continue;
 		// subtract third main
-		auto b_tm1 = AraBlock::subtract( blocks[second], blocks[third] );
-		auto b_tm2 = AraBlock::subtract( blocks[third], blocks[main] );
+		auto b_tm1 = AraBlock::subtract( blocks[third], blocks[main] );
+		auto b_tm2 = AraBlock::subtract( blocks[second], blocks[third] );
 		double w_tm = current + img.weight( b_tm1, base ) + img.weight( b_tm2, base );
 		if( w_tm < best ){
 			best = w_tm;
@@ -1155,12 +1319,15 @@ AraImage::AraColorBlock::AraColorBlock( const AraImage& img, Type t, unsigned x,
 			out2 = b_tm1;
 			out3 = b_tm2;
 		}
+		//*/
 	}
 	
 	//Set data
 	data_1 = out1.data;
 	data_2 = out2.data;
 	data_3 = out3.data;
+//	for( auto data : out3.data )
+//		data_2.push_back( data );
 	
 	//Set statistics
 	count = out1.count + out2.count + out3.count;

@@ -290,9 +290,13 @@ class AraImage{
 			
 			AraBlock( unsigned x, unsigned y, const AraImage& img, int plane, Config config );
 			
-			static AraBlock subtract( AraBlock b1, AraBlock b2 ){
+			static AraBlock subtract( const AraBlock& b1, const AraBlock& b2 ){
 				auto b = b1;
-				b1.data = offsetData( b1.data, invertData( b2.data ) );
+				b.data = offsetData( b1.data, invertData( b2.data ) );
+				
+				b.count = 0;
+				for( auto data : b.data )
+					b.count += abs( data );
 				return b;
 			}
 		};
@@ -337,6 +341,7 @@ class AraImage{
 			,	std::vector<uint8_t> types, unsigned& type_pos
 			,	unsigned block_size );
 		void read_blocks( std::vector<uint8_t> data );
+		void readColorBlocks( std::vector<uint8_t> data );
 		
 		struct Chunk{
 			std::vector<int> data;
