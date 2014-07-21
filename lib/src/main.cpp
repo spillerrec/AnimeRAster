@@ -20,6 +20,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QImage>
+#include <QDebug>
 
 #include "dump/DumpPlane.hpp"
 #include "AraImage.hpp"
@@ -81,6 +82,19 @@ int main( int argc, char* argv[] ){
 				QImage qimg;
 				qimg.load( (QIODevice*)&f, info.suffix().toUtf8() );
 				
+				/*
+				if( !qimg.allGray() ){
+					QImage gray( qimg );
+					for( int iy=0; iy<qimg.height(); iy++ ){
+						auto row = (QRgb*)gray.scanLine( iy );
+						for( int ix=0; ix<qimg.width(); ix++ ){
+							auto gray = qGray( row[ix] );
+							row[ix] = qRgb( gray, gray, gray );
+						}
+					}
+					gray.save( "black/" + info.baseName() + ".png" );
+				}
+				*/
 				img.initFromQImage( qimg );
 			}
 			f.close();

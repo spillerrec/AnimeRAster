@@ -24,6 +24,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
+#include <algorithm>
 
 using namespace std;
 
@@ -64,11 +65,15 @@ vector<uint8_t> packTo4bit( const vector<int>& in ){
 	return out;
 }
 
+
 vector<uint8_t> packTo8bit( const vector<int>& in ){
 	vector<uint8_t> out;
 	out.reserve( in.size() );
 	
+//	Remap map( in );
+	
 	for( auto val : in )
+//		out.push_back( map.translate( val ) );
 		out.push_back( val );
 	
 	return out;

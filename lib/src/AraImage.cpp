@@ -530,7 +530,7 @@ void AraImage::readColorBlocks( std::vector<uint8_t> data ){
 	
 	//Read blocks
 	for( unsigned p=0; p<3; p++ ){
-		unsigned type_pos = 0, color_pos = 0;
+		unsigned color_pos = 0;
 		for( unsigned iy=0; iy<height; iy+=block_size )
 			for( unsigned ix=0; ix<width; ix+=block_size ){
 				
@@ -554,15 +554,10 @@ void AraImage::readColorBlocks( std::vector<uint8_t> data ){
 			for( unsigned ix=0; ix<width; ix+=block_size ){
 				auto type = types[type_pos++];
 				auto color = colors[color_pos++];
-			//	cout << ix << "x" << iy << endl;
-			//	cout << "Type: "  << (int)type << endl;
 				
 				//Translate settings
 				auto f = getFilter( (Type)type );
-				unsigned plane = p;//color_to_plane( color, p );
-				unsigned sub = color_sub_plane( color, plane );
-			//	if( color == 3*2+1 || color == 3*2+2 )
-			//		cout << "color_to_plane: shit... " << (int)color << " - " << plane << " - " << sub << endl;
+				unsigned sub = color_sub_plane( color, p );
 				
 				//Truncate sizes to not go out of the plane
 				unsigned b_w = min( ix+block_size, width );
@@ -570,25 +565,17 @@ void AraImage::readColorBlocks( std::vector<uint8_t> data ){
 				
 				for( unsigned jy=iy; jy < b_h; jy++ )
 					for( unsigned jx=ix; jx < b_w; jx++ ){
-						
-						if( plane != sub ){
+						//Revert color decorrelation
+						if( p != sub ){
 							if( p < sub )
-								planes[plane].setValue( jx, jy, planes[plane].value( jx, jy ) + planes[sub].value( jx, jy ) );
+								planes[p].setValue( jx, jy, planes[p].value( jx, jy ) + planes[sub].value( jx, jy ) );
 							else
-								planes[plane].setValue( jx, jy, planes[plane].value( jx, jy ) + planes[sub].value( jx, jy ) - (this->*f)( sub, jx, jy ) );
+								planes[p].setValue( jx, jy, planes[p].value( jx, jy ) + planes[sub].value( jx, jy ) - (this->*f)( sub, jx, jy ) );
 						}
 						
-						int val =  planes[plane].value( jx, jy ) + (this->*f)( plane, jx, jy );
-						
-						/*
-						if( plane != sub ){
-							if( p < sub )
-								val += planes[sub].value( jx, jy );
-							else
-								val += planes[sub].value( jx, jy ) - (this->*f)( sub, jx, jy );
-						}
-						*/
-						planes[plane].setValue( jx, jy, unsigned(val) % limit );
+						//Revert filtering
+						int val =  planes[p].value( jx, jy ) + (this->*f)( p, jx, jy );
+						planes[p].setValue( jx, jy, unsigned(val) % limit );
 					}
 			}
 	}
@@ -829,13 +816,13 @@ vector<uint8_t> AraImage::compress_blocks( Config config ) const{
 
 vector<uint8_t> AraImage::compressColorBlocks( Config config ) const{
 	vector<int> out, out2, out3;
-	vector<uint8_t> types{ config.block_size };
-	vector<uint8_t> settings;
+	vector<int> types{ config.block_size };
+	vector<int> settings;
 	
 	Entropy entropy;
 	
 	for( unsigned iy=0; iy<height; iy+=config.block_size ){
-		cout << "line: " << iy << endl;
+	//	cout << "line: " << iy << endl;
 		for( unsigned ix=0; ix<width; ix+=config.block_size ){
 			auto block = bestColorBlock( ix, iy, config, entropy );
 			entropy.add( block.entropy );
@@ -862,7 +849,7 @@ vector<uint8_t> AraImage::compressColorBlocks( Config config ) const{
 	else
 		packed = packTo8bit( out );
 	
-//	cout << "count size: " << lzmaCompress( data ).size() << " - ?" << endl;
+//	cout << "count size: " << lzmaCompress( packed ).size() << " - ?" << endl;
 //	cout << "\ttypes size:    " << lzmaCompress( types ).size() << "\t - " << types.size() << endl;
 //	cout << "\tsettings size: " << lzmaCompress( settings ).size() << "\t - " << settings.size() << endl;
 	
@@ -871,11 +858,16 @@ vector<uint8_t> AraImage::compressColorBlocks( Config config ) const{
 	if( config.save_settings ){
 	//	cout << "Types size: " << types.size() << endl;
 	//	cout << "Settings size: " << settings.size() << endl;
-	
+		
+//		Remap type_map( types );
+//		Remap color_map( settings );
+		
 		for( auto type : types )
 			data.push_back( type );
+//			data.push_back( type_map.translate( type ) );
 		for( auto set : settings )
 			data.push_back( set );
+//			data.push_back( color_map.translate( set ) );
 	}
 	
 	for( auto pack : packed )
@@ -1212,7 +1204,7 @@ std::vector<uint8_t> AraImage::make_optimal_configuration() const{
 	config.diff_save_offset = 0;
 	
 		//Try several settings, and use best one
-		for( unsigned i=8; i<=8; i*=2 )
+		for( unsigned i=4; i<=8; i*=2 )
 			for( unsigned j=i; j>=i; j/=2 )
 				for( unsigned k=2; k<=2; k*=2 )
 //				for( double m=0.00; m<1.5; m+=0.25 )
@@ -1307,7 +1299,7 @@ AraImage::AraColorBlock::AraColorBlock( const AraImage& img, Type t, unsigned x,
 		}
 		
 		//if( main > 0 )
-			continue;
+		//	continue;
 		// subtract third main
 		auto b_tm1 = AraBlock::subtract( blocks[third], blocks[main] );
 		auto b_tm2 = AraBlock::subtract( blocks[second], blocks[third] );
@@ -1323,11 +1315,16 @@ AraImage::AraColorBlock::AraColorBlock( const AraImage& img, Type t, unsigned x,
 	}
 	
 	//Set data
-	data_1 = out1.data;
-	data_2 = out2.data;
-	data_3 = out3.data;
+//	data_1 = out1.data;
+//	data_2 = out2.data;
+//	data_3 = out3.data;
 //	for( auto data : out3.data )
 //		data_2.push_back( data );
+	for( unsigned i=0; i<out2.data.size(); i++ ){
+		data_1.push_back( out1.data[i] );
+		data_1.push_back( out2.data[i] );
+		data_1.push_back( out3.data[i] );
+	}
 	
 	//Set statistics
 	count = out1.count + out2.count + out3.count;

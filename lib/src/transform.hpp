@@ -17,6 +17,7 @@
 #ifndef TRANSFORM_HPP
 #define TRANSFORM_HPP
 
+#include <algorithm>
 #include <stdint.h>
 #include <iostream>
 #include <vector>
@@ -52,5 +53,41 @@ std::vector<int> offsetData( const std::vector<int>& in, int offset );
 std::vector<int> offsetData( const std::vector<int>& data, const std::vector<int>& offsets );
 
 std::vector<int> invertData( const std::vector<int>& data );
+
+
+class Remap{
+	private:
+		struct Counter{
+			uint64_t count;
+			uint8_t value;
+			uint8_t mapped;
+			Counter( uint64_t count, uint8_t value ) : count(count), value(value) { }
+			
+			bool operator<( const Counter& other ) const{ return count > other.count; }
+		};
+		std::vector<Counter> histogram;
+		
+	public:
+		Remap( const std::vector<int>& vals ){
+			for( unsigned i=0; i<256; i++ )
+				histogram.emplace_back( 0, i );
+			
+			for( uint8_t val : vals )
+				histogram[val].count++;
+			
+			std::sort( histogram.begin(), histogram.end() );
+			for( unsigned i=0; i<256; i++ )
+				histogram[i].mapped = i;
+			
+			std::sort( histogram.begin(), histogram.end(), []( Counter a, Counter b ){ return a.value < b.value; } );
+			
+		//	for( unsigned i=0; i<256; i++ )
+		//		cout << i << " - " << (int)histogram[i].count << " - " << (int)histogram[i].mapped << endl;
+		}
+		
+		uint8_t translate( uint8_t in ) const{
+			return histogram[in].mapped;
+		}
+};
 
 #endif
