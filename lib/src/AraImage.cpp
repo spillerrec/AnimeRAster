@@ -439,76 +439,71 @@ void AraImage::read_blocks( vector<uint8_t> data ){
 	}
 }
 
-int color_to_plane( int type, int plane ){
-	switch( type ){
-		case  0:
-		case  1:
-		case  2: return ( plane==0 ) ? 0 : ( plane==1 ) ? 1 : 2;
-		case  3: return ( plane==0 ) ? 0 : ( plane==1 ) ? 2 : 1;
-		case  4: 
-		case  5: return ( plane==0 ) ? 1 : ( plane==1 ) ? 0 : 2;
-		case  6: return ( plane==0 ) ? 1 : ( plane==1 ) ? 2 : 0;
-		case  7: 
-		case  8: return ( plane==0 ) ? 2 : ( plane==1 ) ? 0 : 1;
-		case  9: return ( plane==0 ) ? 2 : ( plane==1 ) ? 1 : 0;
-		default: return plane;
-	};
-	/*
-	if( type == 0 )
-		return plane;
+AraImage::Pixel AraImage::Pixel::encode( int r, int g, int b, int transform ){
+	Pixel pixel( r, g, b );
 	
-	type -= 1;
-	int main = type / 3;
-	int second = ( main != 0 ) ? 0 : 1;
-	vector<int> planes{ main
-		,	second
-		,	( main != 1 && second != 1 ) ? 1 : 2
-	};
+	if( transform == 0 )
+		return pixel;;
 	
-	if( ((type % 3) == 2) && (plane != 0) )
-		return ( plane == 1 ) ? planes[2] : second;
-	else
-		return planes[plane];
-	*/
-}
-
-int color_sub_plane( int type, int plane ){
-	switch( type ){
-		case  0: return ( plane==0 ) ? 0 : ( plane==1 ) ? 1 : 2;
-		case  1: return ( plane==0 ) ? 0 : ( plane==1 ) ? 0 : 0;
-		case  2: return ( plane==0 ) ? 0 : ( plane==1 ) ? 0 : 1;
-		case  3: return ( plane==0 ) ? 0 : ( plane==1 ) ? 2 : 0;
-		case  4: return ( plane==0 ) ? 1 : ( plane==1 ) ? 1 : 1;
-		case  5: return ( plane==0 ) ? 1 : ( plane==1 ) ? 1 : 0;
-		case  6: return ( plane==0 ) ? 2 : ( plane==1 ) ? 1 : 1;
-		case  7: return ( plane==0 ) ? 2 : ( plane==1 ) ? 2 : 2;
-		case  8: return ( plane==0 ) ? 2 : ( plane==1 ) ? 0 : 2;
-		case  9: return ( plane==0 ) ? 1 : ( plane==1 ) ? 0 : 2;
-		default: return plane;
-	};
-	
-	/*
-	if( type == 0 )
-		return plane; //No subtraction
-	
-	type -= 1;
-	int main = type / 3;
+	transform--;
+	int main = transform / 3;
 	int second = ( main != 0 ) ? 0 : 1;
 	int third = ( main != 1 && second != 1 ) ? 1 : 2;
-//	cout << "123:   " << main << "-" << second << "-" << third << endl;
 	
-	switch( type % 3 ){
-		case 0: return main;
-		case 1: return ( plane <= 1 ) ? main : 1;
-		case 2: return ( plane == 1 ) ? 2 : main;
-		default:
-			cout << "color_to_plane: shit... " << type << " - " << plane << endl;
-			return plane;
+	Pixel enc = pixel;
+	switch( transform % 3 ){
+		case 0:
+				enc.color[second] -= enc.color[main];
+				enc.color[third] -= enc.color[main];
+			break;
+		case 1:
+				enc.color[second] -= enc.color[main];
+				enc.color[third] -= enc.color[second];
+			break;
+		case 2:
+				enc.color[second] -= enc.color[third];
+				enc.color[third] -= enc.color[main];
+			break;
+	};
+	//TODO: reorder, i.e. swap( main, 0 )
+	return enc;
+}
+AraImage::Pixel AraImage::Pixel::decode( const vector<uint8_t>& data, unsigned& pos, int transform ){
+	//Read
+	Pixel pixel;
+	for( unsigned p=0; p<3; p++ ){
+		//TODO: multi-byte stuff...
+		pixel.color[p] = data[pos++];
 	}
-	*/
+	
+	if( transform == 0 )
+		return pixel;
+	
+	transform--;
+	int main = transform / 3;
+	int second = ( main != 0 ) ? 0 : 1;
+	int third = ( main != 1 && second != 1 ) ? 1 : 2;
+	
+	//Revert color decorrelation
+	switch( transform % 3 ){
+		case 0:
+				pixel.color[second] += pixel.color[main];
+				pixel.color[third] += pixel.color[main];
+			break;
+		case 1:
+				pixel.color[second] += pixel.color[main];
+				pixel.color[third] += pixel.color[second];
+			break;
+		case 2:
+				pixel.color[third] += pixel.color[main];
+				pixel.color[second] += pixel.color[third];
+			break;
+	};
+	//TODO: reorder?
+	return pixel;
 }
 
-void AraImage::readColorBlocks( std::vector<uint8_t> data ){
+void AraImage::readColorBlocks( vector<uint8_t> data ){
 	unsigned pos = 0;
 	
 	unsigned block_size = data[pos++];
@@ -529,56 +524,31 @@ void AraImage::readColorBlocks( std::vector<uint8_t> data ){
 	
 	
 	//Read blocks
-	for( unsigned p=0; p<3; p++ ){
-		unsigned color_pos = 0;
-		for( unsigned iy=0; iy<height; iy+=block_size )
-			for( unsigned ix=0; ix<width; ix+=block_size ){
-				
-				//Truncate sizes to not go out of the plane
-				unsigned b_w = min( ix+block_size, width );
-				unsigned b_h = min( iy+block_size, height );
-				
-				auto color = colors[color_pos++];
-				unsigned plane = color_to_plane( color, p );
-				
-				for( unsigned jy=iy; jy < b_h; jy++ )
-					for( unsigned jx=ix; jx < b_w; jx++ )
-						planes[plane].setValue( jx, jy, data[pos++] );
-			}
-	}
+	unsigned type_pos = 0, color_pos = 0;
 	
-	for( unsigned p=0; p<3; p++ ){
-		unsigned type_pos = 0, color_pos = 0;
-		
-		for( unsigned iy=0; iy<height; iy+=block_size )
-			for( unsigned ix=0; ix<width; ix+=block_size ){
-				auto type = types[type_pos++];
-				auto color = colors[color_pos++];
-				
-				//Translate settings
-				auto f = getFilter( (Type)type );
-				unsigned sub = color_sub_plane( color, p );
-				
-				//Truncate sizes to not go out of the plane
-				unsigned b_w = min( ix+block_size, width );
-				unsigned b_h = min( iy+block_size, height );
-				
-				for( unsigned jy=iy; jy < b_h; jy++ )
-					for( unsigned jx=ix; jx < b_w; jx++ ){
-						//Revert color decorrelation
-						if( p != sub ){
-							if( p < sub )
-								planes[p].setValue( jx, jy, planes[p].value( jx, jy ) + planes[sub].value( jx, jy ) );
-							else
-								planes[p].setValue( jx, jy, planes[p].value( jx, jy ) + planes[sub].value( jx, jy ) - (this->*f)( sub, jx, jy ) );
-						}
-						
-						//Revert filtering
-						int val =  planes[p].value( jx, jy ) + (this->*f)( p, jx, jy );
+	for( unsigned iy=0; iy<height; iy+=block_size )
+		for( unsigned ix=0; ix<width; ix+=block_size ){
+			auto type = types[type_pos++];
+			auto color = colors[color_pos++];
+			
+			//Translate settings
+			auto f = getFilter( (Type)type );
+			
+			//Truncate sizes to not go out of the plane
+			unsigned b_w = min( ix+block_size, width );
+			unsigned b_h = min( iy+block_size, height );
+			
+			for( unsigned jy=iy; jy < b_h; jy++ )
+				for( unsigned jx=ix; jx < b_w; jx++ ){
+					auto pixel = Pixel::decode( data, pos, color );
+					
+					//Revert filtering
+					for( unsigned p=0; p<3; p++ ){
+						int val =  pixel.color[p] + (this->*f)( p, jx, jy );
 						planes[p].setValue( jx, jy, unsigned(val) % limit );
 					}
-			}
-	}
+				}
+		}
 	
 }
 
@@ -1265,7 +1235,7 @@ AraImage::AraColorBlock::AraColorBlock( const AraImage& img, Type t, unsigned x,
 	//Start with C___
 	double best = img.weight( blocks[0], base ) + img.weight( blocks[1], base ) + img.weight( blocks[2], base );
 	ctype = C___;
-	AraBlock out1( blocks[0] ), out2( blocks[1] ), out3( blocks[2] );
+	vector<AraBlock> out = blocks;
 	
 	//Main color iteration
 	for( int main=0; main<3; main++ ){
@@ -1281,9 +1251,9 @@ AraImage::AraColorBlock::AraColorBlock( const AraImage& img, Type t, unsigned x,
 		if( w_mm < best ){
 			best = w_mm;
 			ctype = (CType)( main*3 + 1 );
-			out1 = blocks[main];
-			out2 = b_mm1;
-			out3 = b_mm2;
+			out[main]   = blocks[main];
+			out[second] = b_mm1;
+			out[third]  = b_mm2;
 		}
 		//*/
 		// subtract main second
@@ -1293,23 +1263,23 @@ AraImage::AraColorBlock::AraColorBlock( const AraImage& img, Type t, unsigned x,
 		if( w_ms < best ){
 			best = w_ms;
 			ctype = (CType)( main*3 + 2 );
-			out1 = blocks[main];
-			out2 = b_ms1;
-			out3 = b_ms2;
+			out[main]   = blocks[main];
+			out[second] = b_ms1;
+			out[third]  = b_ms2;
 		}
 		
 		//if( main > 0 )
 		//	continue;
 		// subtract third main
-		auto b_tm1 = AraBlock::subtract( blocks[third], blocks[main] );
-		auto b_tm2 = AraBlock::subtract( blocks[second], blocks[third] );
+		auto b_tm1 = AraBlock::subtract( blocks[second], blocks[third] );
+		auto b_tm2 = AraBlock::subtract( blocks[third], blocks[main] );
 		double w_tm = current + img.weight( b_tm1, base ) + img.weight( b_tm2, base );
 		if( w_tm < best ){
 			best = w_tm;
 			ctype = (CType)( main*3 + 3 );
-			out1 = blocks[main];
-			out2 = b_tm1;
-			out3 = b_tm2;
+			out[main]   = blocks[main];
+			out[second] = b_tm1;
+			out[third]  = b_tm2;
 		}
 		//*/
 	}
@@ -1320,17 +1290,17 @@ AraImage::AraColorBlock::AraColorBlock( const AraImage& img, Type t, unsigned x,
 //	data_3 = out3.data;
 //	for( auto data : out3.data )
 //		data_2.push_back( data );
-	for( unsigned i=0; i<out2.data.size(); i++ ){
-		data_1.push_back( out1.data[i] );
-		data_1.push_back( out2.data[i] );
-		data_1.push_back( out3.data[i] );
+	for( unsigned i=0; i<out[0].data.size(); i++ ){
+		data_1.push_back( out[0].data[i] );
+		data_1.push_back( out[1].data[i] );
+		data_1.push_back( out[2].data[i] );
 	}
 	
 	//Set statistics
-	count = out1.count + out2.count + out3.count;
-	entropy.add( out1.entropy );
-	entropy.add( out2.entropy );
-	entropy.add( out3.entropy );
+	count = out[0].count + out[1].count + out[2].count;
+	entropy.add( out[0].entropy );
+	entropy.add( out[1].entropy );
+	entropy.add( out[2].entropy );
 	weight = best;
 }
 

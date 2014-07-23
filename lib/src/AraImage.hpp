@@ -301,6 +301,20 @@ class AraImage{
 			}
 		};
 		
+		struct Pixel{
+			int color[3];
+			
+			Pixel() { }
+			Pixel( int r, int g, int b){
+				color[0] = r;
+				color[1] = g;
+				color[2] = b;
+			}
+			
+			static Pixel encode( int r, int g, int b, int transform );
+			static Pixel decode( const std::vector<uint8_t>& data, unsigned& pos, int transform );
+		};
+		
 		struct AraColorBlock{
 			Type type{ NORMAL };
 			CType ctype;
