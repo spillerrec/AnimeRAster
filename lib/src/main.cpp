@@ -63,6 +63,7 @@ int main( int argc, char* argv[] ){
 		if( f.open( QIODevice::ReadOnly ) ){
 			if( info.suffix() == "ara" ){
 				img.read( f );
+				img.outputImage().save( "readImage.png" );
 				
 				break;
 			}

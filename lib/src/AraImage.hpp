@@ -102,6 +102,7 @@ class AraImage{
 		bool write( QIODevice &dev, Compression level=BLOCKS );
 		
 		QImage outputPlanes() const;
+		QImage outputImage() const;
 		
 	public: //TODO:
 		typedef int (AraImage::*FilterFunc)( int,unsigned,unsigned ) const;

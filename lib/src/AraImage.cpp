@@ -613,6 +613,32 @@ QImage AraImage::outputPlanes() const{
 }
 
 
+QImage AraImage::outputImage() const{
+	QImage img( width, height, QImage::Format_RGB32 );
+	img.fill( 0 );
+	
+	if( channels == RGB ){
+		unsigned depth_offset = depth - 8;
+		for( unsigned iy=0; iy<height; iy++ ){
+			auto row = (QRgb*)img.scanLine( iy );
+			for( unsigned ix=0; ix<width; ix++ ){
+				row[ix] = qRgb(
+						planes[0].value(ix,iy) >> depth_offset
+					,	planes[1].value(ix,iy) >> depth_offset
+					,	planes[2].value(ix,iy) >> depth_offset
+					);
+			}
+		}
+	}
+	else{
+		cout << "YUV images not yet implemented!" << endl;
+		return QImage();
+	}
+	
+	return img;
+}
+
+
 vector<uint8_t> AraImage::compress_none() const{
 	vector<int> data;
 	for( auto p : planes )
