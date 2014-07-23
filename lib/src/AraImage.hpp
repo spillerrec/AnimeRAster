@@ -220,32 +220,6 @@ class AraImage{
 					return false;
 			};
 		}
-		
-		enum CType{
-				C___ = 0x0
-			,	C_RR = 0x1
-			,	C_RG = 0x2
-			,	C_BR = 0x3
-			,	CG_G = 0x4
-			,	CG_R = 0x5
-			,	CB_G = 0x6
-			,	CBB_ = 0x7
-			,	CBR_ = 0x8
-			,	CGB_ = 0x9
-			
-			/* Probably overkill...
-			,	C__R = 0xA
-			,	C__G = 0xB
-			,	C_R_ = 0xC
-			,	C_B_ = 0xD
-			,	CG__ = 0xE
-			,	CB__ = 0xF
-			,	C__G = 0x10
-			,	C__R = 0x11
-			//*/
-			};
-			
-		int color_predict( int p1, int p2, unsigned x, unsigned y ) const;
 			
 		struct AraLine{
 			Type  type{ NORMAL };
@@ -317,10 +291,8 @@ class AraImage{
 		
 		struct AraColorBlock{
 			Type type{ NORMAL };
-			CType ctype;
-			std::vector<int> data_1;
-			std::vector<int> data_2;
-			std::vector<int> data_3;
+			int ctype;
+			std::vector<int> data;
 			unsigned count{ 0 };
 			Entropy entropy;
 			double weight;

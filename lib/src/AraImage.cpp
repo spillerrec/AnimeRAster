@@ -162,13 +162,6 @@ int AraImage::diff_predict( int plane, unsigned x, unsigned y, int dx, int dy ) 
 }
 
 
-int AraImage::color_predict( int p1, int p2, unsigned x, unsigned y ) const{
-	return planes[p1].value( x, y ) - planes[p2].value( x, y );
-}
-
-
-
-
 static uint8_t read8( QIODevice &dev ){
 	char byte1 = 0;
 	dev.getChar( &byte1 );
@@ -797,21 +790,12 @@ vector<uint8_t> AraImage::compressColorBlocks( Config config ) const{
 			auto block = bestColorBlock( ix, iy, config, entropy );
 			entropy.add( block.entropy );
 			
-			for( auto data : block.data_1 )
+			for( auto data : block.data )
 				out.push_back( data );
-			for( auto data : block.data_2 )
-				out2.push_back( data );
-			for( auto data : block.data_3 )
-				out3.push_back( data );
 			types.push_back( block.type );
 			settings.push_back( block.ctype );
 		}
 	}
-	
-	for( auto data : out2 )
-		out.push_back( data );
-	for( auto data : out3 )
-		out.push_back( data );
 	
 	vector<uint8_t> packed;
 	if( depth > 8 )
@@ -977,23 +961,6 @@ AraImage::AraBlock::AraBlock( AraImage::Type t, unsigned x, unsigned y, unsigned
 			entropy.add( val );
 			count += abs( val );
 		}
-	
-	/*
-	//Color decorrelation
-	if( img.channels == RGB && plane != 1 ){ //TODO: do properly
-		entropy = Entropy();
-		count = 0;
-		data.clear();
-		for( unsigned iy=y; iy < y+height; iy++ )
-			for( unsigned ix=x; ix < x+width; ix++ ){
-				auto val = img.planes[1].value( ix, iy ) - (img.*filter)( 1, ix, iy );
-				val -= img.planes[plane].value( ix, iy ) - (img.*filter)( plane, ix, iy );
-				data.emplace_back( val );
-				entropy.add( val );
-				count += abs( val );
-			}
-	}
-	*/
 }
 
 
@@ -1232,9 +1199,9 @@ AraImage::AraColorBlock::AraColorBlock( const AraImage& img, Type t, unsigned x,
 		,	AraBlock( t, x, y, size, img, 2 )
 		};
 	
-	//Start with C___
+	//Start with untouched colors
 	double best = img.weight( blocks[0], base ) + img.weight( blocks[1], base ) + img.weight( blocks[2], base );
-	ctype = C___;
+	ctype = 0;
 	vector<AraBlock> out = blocks;
 	
 	//Main color iteration
@@ -1250,50 +1217,42 @@ AraImage::AraColorBlock::AraColorBlock( const AraImage& img, Type t, unsigned x,
 		double w_mm = current + img.weight( b_mm1, base ) + img.weight( b_mm2, base );
 		if( w_mm < best ){
 			best = w_mm;
-			ctype = (CType)( main*3 + 1 );
+			ctype = main*3 + 1;
 			out[main]   = blocks[main];
 			out[second] = b_mm1;
 			out[third]  = b_mm2;
 		}
-		//*/
+		
 		// subtract main second
 		auto b_ms1 = AraBlock::subtract( blocks[second], blocks[main] );
 		auto b_ms2 = AraBlock::subtract( blocks[third], blocks[second] );
 		double w_ms = current + img.weight( b_ms1, base ) + img.weight( b_ms2, base );
 		if( w_ms < best ){
 			best = w_ms;
-			ctype = (CType)( main*3 + 2 );
+			ctype = main*3 + 2;
 			out[main]   = blocks[main];
 			out[second] = b_ms1;
 			out[third]  = b_ms2;
 		}
 		
-		//if( main > 0 )
-		//	continue;
 		// subtract third main
 		auto b_tm1 = AraBlock::subtract( blocks[second], blocks[third] );
 		auto b_tm2 = AraBlock::subtract( blocks[third], blocks[main] );
 		double w_tm = current + img.weight( b_tm1, base ) + img.weight( b_tm2, base );
 		if( w_tm < best ){
 			best = w_tm;
-			ctype = (CType)( main*3 + 3 );
+			ctype = main*3 + 3;
 			out[main]   = blocks[main];
 			out[second] = b_tm1;
 			out[third]  = b_tm2;
 		}
-		//*/
 	}
 	
 	//Set data
-//	data_1 = out1.data;
-//	data_2 = out2.data;
-//	data_3 = out3.data;
-//	for( auto data : out3.data )
-//		data_2.push_back( data );
 	for( unsigned i=0; i<out[0].data.size(); i++ ){
-		data_1.push_back( out[0].data[i] );
-		data_1.push_back( out[1].data[i] );
-		data_1.push_back( out[2].data[i] );
+		data.push_back( out[0].data[i] );
+		data.push_back( out[1].data[i] );
+		data.push_back( out[2].data[i] );
 	}
 	
 	//Set statistics
