@@ -1,17 +1,17 @@
-/*	This file is part of dump-tools.
+/*	This file is part of AnimeRAster.
 
-	dump-tools is free software: you can redistribute it and/or modify
+	AnimeRAster is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
 	the Free Software Foundation, either version 3 of the License, or
 	(at your option) any later version.
 
-	dump-tools is distributed in the hope that it will be useful,
+	AnimeRAster is distributed in the hope that it will be useful,
 	but WITHOUT ANY WARRANTY; without even the implied warranty of
 	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 	GNU General Public License for more details.
 
 	You should have received a copy of the GNU General Public License
-	along with dump-tools.  If not, see <http://www.gnu.org/licenses/>.
+	along with AnimeRAster.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "AraImage.hpp"
@@ -515,6 +515,7 @@ void AraImage::readColorBlocks( vector<uint8_t> data ){
 	for( unsigned i=0; i<blocks_count; i++ )
 		colors.push_back( data[pos++] );
 	
+	debug_types( colors );
 	
 	//Read blocks
 	unsigned type_pos = 0, color_pos = 0;
@@ -533,11 +534,11 @@ void AraImage::readColorBlocks( vector<uint8_t> data ){
 			
 			for( unsigned jy=iy; jy < b_h; jy++ )
 				for( unsigned jx=ix; jx < b_w; jx++ ){
-					auto pixel = Pixel::decode( data, pos, color );
+					auto pixel = Pixel::decode( data, pos, 0 );//color );
 					
 					//Revert filtering
 					for( unsigned p=0; p<3; p++ ){
-						int val =  pixel.color[p] + (this->*f)( p, jx, jy );
+						int val =  pixel.color[p] + 128;//(this->*f)( p, jx, jy );
 						planes[p].setValue( jx, jy, unsigned(val) % limit );
 					}
 				}
@@ -1162,7 +1163,7 @@ std::vector<uint8_t> AraImage::make_optimal_configuration() const{
 	config.search_size = 4;
 	config.types = EnabledTypes(ALL_ON & ~DIFF_ON & ~PAETH_ON /*& ~RIGHT_ON*/ & ~PREV_ON );
 	config.multi_penalty = 0.1;
-	config.both_directions = false;
+	config.both_directions = true;
 	config.save_settings = true;
 	config.diff_save_offset = 0;
 	
