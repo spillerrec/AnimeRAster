@@ -21,6 +21,11 @@
 using namespace std;
 
 
+double blockWeight( const AraImage::AraBlock& block, const Entropy& base ){
+	return block.count;
+//	return base.entropy( block.entropy );
+}
+
 QImage ValuePlane::asImage() const{
 	QImage img( width, height, QImage::Format_RGB32 );
 	img.fill( 0 );
@@ -364,13 +369,6 @@ void AraImage::readColorBlocks( vector<uint8_t> data ){
 	}
 }
 
-ValuePlane center( ValuePlane p ){
-	auto stat = statistics( p.data );
-	stat.debug();
-	p.data = offsetData( p.data, -stat.min );
-	return p;
-}
-
 bool AraImage::write( QIODevice &dev, Compression level ){
 	dev.write( "ara", 3 );
 	write8( dev, 0 );
@@ -586,15 +584,6 @@ vector<uint8_t> AraImage::compressColorBlocks( Config config ) const{
 	return data;
 }
 
-unsigned offset_dif( unsigned x, unsigned y, int dx, int dy, unsigned width, unsigned height, const AraImage& img, int plane ){
-	unsigned count = 0;
-	for( unsigned iy=y; iy < y+height; iy++ )
-		for( unsigned ix=x; ix < x+width; ix++ )
-			count += img.diff_filter( plane, ix, iy, dx, dy );
-	
-	return count;
-}
-
 
 AraImage::AraBlock::AraBlock( AraImage::Type t, unsigned x, unsigned y, unsigned size
 	, const AraImage& img, int plane )
@@ -609,119 +598,6 @@ AraImage::AraBlock::AraBlock( AraImage::Type t, unsigned x, unsigned y, unsigned
 		}
 }
 
-
-AraImage::AraBlock::AraBlock( unsigned x, unsigned y, const AraImage& img, int plane, AraImage::Config config )
-	:	AraBlock( DIFF, x, y, img, plane, config.block_size ) {
-	auto p_width = img.planes[plane].width;
-	auto p_height = img.planes[plane].height;
-	
-	count = INT_MAX;
-	double best = count; //TODO: dbl_max
-	
-	unsigned min_x = max( 0, (int)x - (int)config.search_size+1 );
-	unsigned min_y = max( 0, (int)y - (int)config.search_size+1 );
-	unsigned max_x = min( x+1, p_width-width );
-	unsigned max_y = min( y+1, p_height-height );
-	if( config.both_directions ){
-		max_x = min( x + config.search_size, p_width-width );
-		max_y = min( y + config.search_size, p_height-height );
-	}
-	
-	unsigned bx = 0, by = 0;
-	for( unsigned iy=min_y; iy < max_y; iy++ )
-		for( unsigned ix=min_x; ix < max_x; ix++ ){
-			if( ix == x && iy == y )
-				continue;
-			
-			auto current = offset_dif( x, y, ix-x, iy-y, width, height, img, plane );
-			
-			double sum = img.weight_setting( (int)x-(int)bx ) + img.weight_setting( (int)y-(int)by );
-			double w = img.weight( types.size(), current, 2, sum );
-	//		cout << w << "\t" << current << endl;
-			if( w < best ){
-				count = current;
-				best = w;
-				bx = ix;
-				by = iy;
-			}
-		}
-	
-//	cout << "Best: " << (int)bx-(int)x << "x" << (int)by-(int)y << endl;
-	for( unsigned iy=y; iy < y+height; iy++ )
-		for( unsigned ix=x; ix < x+width; ix++ )
-			data.push_back( img.diff_filter( plane, ix, iy, (int)bx-(int)x, (int)by-(int)y ) );
-	
-	settings.push_back( (int)x-(int)bx + config.diff_save_offset );
-	settings.push_back( (int)y-(int)by + config.diff_save_offset );
-}
-
-AraImage::AraBlock AraImage::makeMulti( unsigned x, unsigned y, int plane, AraImage::Config config, const Entropy& base ) const{
-	AraBlock multi( MULTI, x, y, *this, plane, config.block_size );
-	config.block_size /= 2;
-	unsigned size = config.block_size;
-	
-	//Prevent it from creating it, if it cannot make all four blocks
-	//TODO: Make this more flexible
-	if( multi.width < size || multi.height < size || size < config.min_block_size ){
-		multi.count = INT_MAX;
-		return multi;
-	}
-	
-	//Find the best one for each four pieces
-	vector<AraBlock> blocks;
-	blocks.emplace_back( best_block( x,      y,      plane, config, base ) );
-	blocks.emplace_back( best_block( x+size, y,      plane, config, base ) );
-	blocks.emplace_back( best_block( x,      y+size, plane, config, base ) );
-	blocks.emplace_back( best_block( x+size, y+size, plane, config, base ) );
-	
-	//Combine all data into one block
-	for( auto block : blocks )
-		for( auto data : block.data )
-			multi.data.push_back( data );
-	
-	//Add types
-	for( auto block : blocks )
-		for( auto type : block.types )
-			multi.types.push_back( type );
-	
-	//Add any settings from the blocks
-	for( auto block : blocks )
-		for( auto setting : block.settings )
-			multi.settings.push_back( setting );
-	
-	//Add count
-	for( auto block : blocks )
-		multi.count += block.count;
-	multi.count *= config.multi_penalty;
-	
-	return multi;
-}
-
-double AraImage::weight_setting( int setting ) const{
-	auto val = ceil(log2( setting+1 )) * setting_log_weight;
-	return val * val;
-}
-
-double AraImage::weight( const AraImage::AraBlock& block, const Entropy& base ) const{
-	return block.count;
-//	return base.entropy( block.entropy );
-	
-	double settings_sum = 0.0;
-	for( auto setting : block.settings )
-		settings_sum += weight_setting( setting );
-//	if( block.settings.size() != 0 )
-//		cout << settings_sum * setting_log_weight << "\t" << block.count * count_weight << endl;
-	
-	return weight( block.types.size(), block.count, block.settings.size(), settings_sum );
-}
-
-double AraImage::weight( unsigned type_count, unsigned count, unsigned settings_count, double settings_sum ) const{
-	return type_count * type_weight
-		+	count * count_weight
-		+	settings_count * setting_lin_weight
-		+	settings_sum;
-}
-
 AraImage::AraBlock AraImage::best_block( unsigned x, unsigned y, int plane, AraImage::Config config, const Entropy& base ) const{
 	auto types = config.types;
 	
@@ -731,25 +607,11 @@ AraImage::AraBlock AraImage::best_block( unsigned x, unsigned y, int plane, AraI
 		if( isTypeOn( t, types ) ){
 			if( !( typeIsRight( t ) && !config.both_directions ) ){
 				AraBlock block( (Type)t, x, y, config.block_size, *this, plane );
-				if( weight(block, base) < weight(best, base) )
+				if( blockWeight(block, base) < blockWeight(best, base) )
 					best = block;
 			}
 		}
 	}
-	
-	/*
-	if( types & MULTI_ON ){
-		AraBlock multi = makeMulti( x, y, plane, config, base );
-		if( weight(multi, base) < weight(best, base) )
-			best = multi;
-	}
-	
-	if( types & DIFF_ON ){
-		AraBlock diff( x, y, *this, plane, config );
-		if( weight(diff, base) < weight(best, base) )
-			best = diff;
-	}
-	*/
 	
 	return best;
 }
@@ -846,7 +708,7 @@ AraImage::AraColorBlock::AraColorBlock( const AraImage& img, Type t, unsigned x,
 		};
 	
 	//Start with untouched colors
-	double best = img.weight( blocks[0], base ) + img.weight( blocks[1], base ) + img.weight( blocks[2], base );
+	double best = blockWeight( blocks[0], base ) + blockWeight( blocks[1], base ) + blockWeight( blocks[2], base );
 	ctype = 0;
 	vector<AraBlock> out = blocks;
 	
@@ -855,12 +717,12 @@ AraImage::AraColorBlock::AraColorBlock( const AraImage& img, Type t, unsigned x,
 		int second = ( main != 0 ) ? 0 : 1;
 		int third = ( main != 1 && second != 1 ) ? 1 : 2;
 		
-		double current = img.weight( blocks[main], base );
+		double current = blockWeight( blocks[main], base );
 		
 		// subtract main main
 		auto b_mm1 = AraBlock::subtract( blocks[second], blocks[main] );
 		auto b_mm2 = AraBlock::subtract( blocks[third], blocks[main] );
-		double w_mm = current + img.weight( b_mm1, base ) + img.weight( b_mm2, base );
+		double w_mm = current + blockWeight( b_mm1, base ) + blockWeight( b_mm2, base );
 		if( w_mm < best ){
 			best = w_mm;
 			ctype = main*3 + 1;
@@ -872,7 +734,7 @@ AraImage::AraColorBlock::AraColorBlock( const AraImage& img, Type t, unsigned x,
 		// subtract main second
 		auto b_ms1 = AraBlock::subtract( blocks[second], blocks[main] );
 		auto b_ms2 = AraBlock::subtract( blocks[third], blocks[second] );
-		double w_ms = current + img.weight( b_ms1, base ) + img.weight( b_ms2, base );
+		double w_ms = current + blockWeight( b_ms1, base ) + blockWeight( b_ms2, base );
 		if( w_ms < best ){
 			best = w_ms;
 			ctype = main*3 + 2;
@@ -884,7 +746,7 @@ AraImage::AraColorBlock::AraColorBlock( const AraImage& img, Type t, unsigned x,
 		// subtract third main
 		auto b_tm1 = AraBlock::subtract( blocks[second], blocks[third] );
 		auto b_tm2 = AraBlock::subtract( blocks[third], blocks[main] );
-		double w_tm = current + img.weight( b_tm1, base ) + img.weight( b_tm2, base );
+		double w_tm = current + blockWeight( b_tm1, base ) + blockWeight( b_tm2, base );
 		if( w_tm < best ){
 			best = w_tm;
 			ctype = main*3 + 3;

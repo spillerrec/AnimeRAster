@@ -204,23 +204,6 @@ class AraImage{
 					return false;
 			};
 		}
-			
-		struct AraLine{
-			Type  type{ NORMAL };
-			std::vector<int> data;
-			unsigned count{ 0 };
-			
-			AraLine( Type t, unsigned y, const AraImage& img, int plane ) : type(t) {
-				auto filter = img.getFilter( t );
-				auto width = img.planes[plane].width;
-				data.reserve( width );
-				for( unsigned ix=0; ix<width; ix++ ){
-					auto val = img.planes[plane].value( ix, y ) - (img.*filter)( plane, ix, y );
-					data.emplace_back( val );
-					count += val;
-				}
-			}
-		};
 		
 		struct AraBlock{
 			Type  type{ NORMAL };
@@ -246,8 +229,6 @@ class AraImage{
 			
 			AraBlock( Type t, unsigned x, unsigned y, unsigned size, const AraImage& img, int plane );
 			
-			AraBlock( unsigned x, unsigned y, const AraImage& img, int plane, Config config );
-			
 			static AraBlock subtract( const AraBlock& b1, const AraBlock& b2 ){
 				auto b = b1;
 				b.data = offsetData( b1.data, invertData( b2.data ) );
@@ -270,17 +251,6 @@ class AraImage{
 			AraColorBlock( const AraImage& img, Type t, unsigned x, unsigned y, unsigned size, const Entropy& base );
 		};
 		
-		
-		double type_weight{ 0.0 };
-		double count_weight{ 1.0 };
-		double setting_lin_weight{ 1.0 };
-		double setting_log_weight{ 0.0 };
-		
-		double weight_setting( int setting ) const;
-		double weight( const AraBlock& block, const Entropy& base ) const;
-		double weight( unsigned type_count, unsigned count, unsigned settings_count, double settings_sum ) const;
-			
-		AraBlock makeMulti( unsigned x, unsigned y, int plane, Config config, const Entropy& base ) const;
 		AraBlock best_block( unsigned x, unsigned y, int plane, Config config, const Entropy& base ) const;
 		AraColorBlock bestColorBlock( unsigned x, unsigned y, Config config, const Entropy& base ) const;
 		std::vector<int> make_optimal( Config config ) const;
