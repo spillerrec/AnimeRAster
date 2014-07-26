@@ -18,7 +18,7 @@
 #define ARA_IMAGE_HPP
 
 #include "dump/DumpPlane.hpp"
-#include "planes/APlane.hpp"
+#include "planes/ValuePlane.hpp"
 #include "planes/PixelPlane.hpp"
 #include "Entropy.hpp"
 #include "transform.hpp"
@@ -31,12 +31,6 @@
 #include <cstring>
 #include <vector>
 
-struct AraPlane : public APlane<int>{
-	public:
-		AraPlane( uint32_t width, uint32_t height, uint8_t depth ) : APlane( width, height, depth ) { }
-		
-		QImage asImage() const;
-};
 
 class AraImage{
 	public:
@@ -65,7 +59,7 @@ class AraImage{
 		
 		uint32_t data_length{ 0 };
 		
-		std::vector<AraPlane> planes;
+		std::vector<ValuePlane> planes;
 		
 	public:
 		uint32_t getWidth() const{ return width; }
@@ -298,11 +292,6 @@ class AraImage{
 		unsigned plane_width( int index ) const{ return width / (( sub_sampling == 1 && index != 0 ) ? 2 : 1); }
 		void read_lines( std::vector<uint8_t> types, std::vector<uint8_t> data, unsigned offset );
 		void read_block( int plane, unsigned y, unsigned amount, int enabled_types ) const;
-		void read_blocks( int plane
-			,	unsigned width, unsigned height, unsigned x, unsigned y
-			,	std::vector<uint8_t> data, unsigned& pos
-			,	std::vector<uint8_t> types, unsigned& type_pos
-			,	unsigned block_size );
 		void read_blocks( std::vector<uint8_t> data );
 		void readColorBlocks( std::vector<uint8_t> data );
 		

@@ -85,48 +85,36 @@ Pixel Pixel::decode( const vector<uint8_t>& data, unsigned& pos, int transform )
 
 
 void PixelPlane::load( const vector<uint8_t>& data ){
-	unsigned pos = 0;
-	
-	unsigned block_size = data[pos++];
-	vector<uint8_t> types;
-	vector<uint8_t> colors;
-	
 	//Init variables
+	unsigned block_size = data[0];
 	unsigned limit = pow( 2, depth );
-	
-	//Load types and color information
 	unsigned blocks_count = ceil( width / (double)block_size ) * ceil( height / (double)block_size );
-	for( unsigned i=0; i<blocks_count; i++ )
-		types.push_back( data[pos++] );
-	for( unsigned i=0; i<blocks_count; i++ )
-		colors.push_back( data[pos++] );
+	
+	//Calculate offsets
+	unsigned type_pos = 1;
+	unsigned color_pos = type_pos + blocks_count;
+	unsigned pos = color_pos + blocks_count;
 	
 	//Read blocks
-	unsigned type_pos = 0, color_pos = 0;
-	
 	for( unsigned iy=0; iy<height; iy+=block_size )
 		for( unsigned ix=0; ix<width; ix+=block_size ){
-			auto type = types[type_pos++];
-			auto color = colors[color_pos++];
-			
 			//Translate settings
+			auto type = data[type_pos++];
+			auto color = data[color_pos++];
 			auto f = getFilter( (Type)type );
 			
 			//Truncate sizes to not go out of the plane
 			unsigned b_w = min( ix+block_size, width );
 			unsigned b_h = min( iy+block_size, height );
 			
+			//Read all pixels in the block
 			for( unsigned jy=iy; jy < b_h; jy++ )
 				for( unsigned jx=ix; jx < b_w; jx++ ){
-					auto pixel = Pixel::decode( data, pos, color );
-					
 					//Revert filtering
-					auto val =  pixel + (this->*f)( jx, jy );
+					auto val =  Pixel::decode( data, pos, color ) + (this->*f)( jx, jy );
 					val.trunc( limit );
 					setValue( jx, jy, val );
 				}
-			
 		}
-		
 }
 
