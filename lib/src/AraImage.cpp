@@ -21,7 +21,7 @@
 using namespace std;
 
 
-QImage AraPlane::asImage( unsigned depth ) const{
+QImage AraPlane::asImage() const{
 	QImage img( width, height, QImage::Format_RGB32 );
 	img.fill( 0 );
 	
@@ -208,7 +208,7 @@ void AraImage::initFromQImage( QImage img ){
 	
 	if( img.allGray() ){
 		channels = GRAY;
-		AraPlane plane( width, height );
+		AraPlane plane( width, height, depth );
 		
 		for( unsigned iy=0; iy<height; iy++ )
 			for( unsigned ix=0; ix<width; ix++ )
@@ -218,9 +218,9 @@ void AraImage::initFromQImage( QImage img ){
 	}
 	else{
 		channels = RGB;
-		AraPlane r( width, height );
-		AraPlane g( width, height );
-		AraPlane b( width, height );
+		AraPlane r( width, height, depth );
+		AraPlane g( width, height, depth );
+		AraPlane b( width, height, depth );
 		
 		for( unsigned iy=0; iy<height; iy++ )
 			for( unsigned ix=0; ix<width; ix++ ){
@@ -246,7 +246,7 @@ void AraImage::initFromDump( std::vector<DumpPlane> dumps ){
 		height = max( height, dump.getHeight() );
 		depth = max( depth, dump.getDepth() );
 		
-		AraPlane p( dump.getWidth(), dump.getHeight() );
+		AraPlane p( dump.getWidth(), dump.getHeight(), depth );
 		for( unsigned iy=0; iy<p.height; iy++ )
 			for( unsigned ix=0; ix<p.width; ix++ )
 				p.setValue( ix, iy, dump.get_value( iy, ix ) );
@@ -336,7 +336,7 @@ void AraImage::read_lines( vector<uint8_t> types, vector<uint8_t> data, unsigned
 	unsigned limit = pow( 2, depth );
 	
 	for( unsigned p=0; p<plane_amount(); p++ ){
-		planes.emplace_back( AraPlane( plane_width( p ), plane_height( p ) ) );
+		planes.emplace_back( AraPlane( plane_width( p ), plane_height( p ), depth ) );
 		
 		for( unsigned iy=0; iy<planes[p].height; iy++ ){
 			auto f = getFilter( (Type)types[t++] );
@@ -427,123 +427,23 @@ void AraImage::read_blocks( vector<uint8_t> data ){
 	unsigned settings_pos = 0;
 	vector<unsigned> decrease_size;
 	for( unsigned p=0; p<plane_amount(); p++ ){
-		planes.push_back( AraPlane( plane_width(p), plane_height(p) ) );
+		planes.push_back( AraPlane( plane_width(p), plane_height(p), depth ) );
 		read_blocks( p, plane_width(p), plane_height(p), 0,0, data, pos, types, type_pos, block_size );
 	}
 }
 
-AraImage::Pixel AraImage::Pixel::encode( int r, int g, int b, int transform ){
-	Pixel pixel( r, g, b );
-	
-	if( transform == 0 )
-		return pixel;;
-	
-	transform--;
-	int main = transform / 3;
-	int second = ( main != 0 ) ? 0 : 1;
-	int third = ( main != 1 && second != 1 ) ? 1 : 2;
-	
-	Pixel enc = pixel;
-	switch( transform % 3 ){
-		case 0:
-				enc.color[second] -= enc.color[main];
-				enc.color[third] -= enc.color[main];
-			break;
-		case 1:
-				enc.color[second] -= enc.color[main];
-				enc.color[third] -= enc.color[second];
-			break;
-		case 2:
-				enc.color[second] -= enc.color[third];
-				enc.color[third] -= enc.color[main];
-			break;
-	};
-	//TODO: reorder, i.e. swap( main, 0 )
-	return enc;
-}
-AraImage::Pixel AraImage::Pixel::decode( const vector<uint8_t>& data, unsigned& pos, int transform ){
-	//Read
-	Pixel pixel;
-	for( unsigned p=0; p<3; p++ ){
-		//TODO: multi-byte stuff...
-		pixel.color[p] = data[pos++];
-	}
-	
-	if( transform == 0 )
-		return pixel;
-	
-	transform--;
-	int main = transform / 3;
-	int second = ( main != 0 ) ? 0 : 1;
-	int third = ( main != 1 && second != 1 ) ? 1 : 2;
-	
-	//Revert color decorrelation
-	switch( transform % 3 ){
-		case 0:
-				pixel.color[second] += pixel.color[main];
-				pixel.color[third] += pixel.color[main];
-			break;
-		case 1:
-				pixel.color[second] += pixel.color[main];
-				pixel.color[third] += pixel.color[second];
-			break;
-		case 2:
-				pixel.color[third] += pixel.color[main];
-				pixel.color[second] += pixel.color[third];
-			break;
-	};
-	//TODO: reorder?
-	return pixel;
-}
 
 void AraImage::readColorBlocks( vector<uint8_t> data ){
-	unsigned pos = 0;
+	PixelPlane image( width, height, depth );
+	image.load( data );
 	
-	unsigned block_size = data[pos++];
-	vector<uint8_t> types;
-	vector<uint8_t> colors;
-	
-	//Init variables
-	for( unsigned p=0; p<3; p++ )
-		planes.push_back( AraPlane( width, height ) );
-	unsigned limit = pow( 2, depth );
-	
-	//Load types and color information
-	unsigned blocks_count = ceil( width / (double)block_size ) * ceil( height / (double)block_size );
-	for( unsigned i=0; i<blocks_count; i++ )
-		types.push_back( data[pos++] );
-	for( unsigned i=0; i<blocks_count; i++ )
-		colors.push_back( data[pos++] );
-	
-	debug_types( colors );
-	
-	//Read blocks
-	unsigned type_pos = 0, color_pos = 0;
-	
-	for( unsigned iy=0; iy<height; iy+=block_size )
-		for( unsigned ix=0; ix<width; ix+=block_size ){
-			auto type = types[type_pos++];
-			auto color = colors[color_pos++];
-			
-			//Translate settings
-			auto f = getFilter( (Type)type );
-			
-			//Truncate sizes to not go out of the plane
-			unsigned b_w = min( ix+block_size, width );
-			unsigned b_h = min( iy+block_size, height );
-			
-			for( unsigned jy=iy; jy < b_h; jy++ )
-				for( unsigned jx=ix; jx < b_w; jx++ ){
-					auto pixel = Pixel::decode( data, pos, color );
-					
-					//Revert filtering
-					for( unsigned p=0; p<3; p++ ){
-						int val =  pixel.color[p] + (this->*f)( p, jx, jy );
-						planes[p].setValue( jx, jy, unsigned(val) % limit );
-					}
-				}
-		}
-	
+	for( unsigned i=0; i<3; i++ ){
+		AraPlane plane( width, height, depth );
+		for( unsigned iy=0; iy<height; iy++ )
+			for( unsigned ix=0; ix<width; ix++ )
+				plane.setValue( ix, iy, image.value( ix, iy ).color[i] );
+		planes.emplace_back( plane );
+	}
 }
 
 AraPlane center( AraPlane p ){

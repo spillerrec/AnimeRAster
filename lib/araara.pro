@@ -14,6 +14,10 @@ win32{
 	SOURCES += src/zpaq/libzpaq.cpp
 }
 
+#Planes
+HEADERS += src/planes/PixelPlane.hpp src/planes/APlane.hpp
+SOURCES += src/planes/PixelPlane.cpp
+
 HEADERS += src/AraImage.hpp src/Entropy.hpp src/transform.hpp
 SOURCES += src/AraImage.cpp src/Entropy.cpp src/transform.cpp src/main.cpp
 

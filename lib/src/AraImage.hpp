@@ -18,6 +18,8 @@
 #define ARA_IMAGE_HPP
 
 #include "dump/DumpPlane.hpp"
+#include "planes/APlane.hpp"
+#include "planes/PixelPlane.hpp"
 #include "Entropy.hpp"
 #include "transform.hpp"
 
@@ -29,36 +31,11 @@
 #include <cstring>
 #include <vector>
 
-struct AraPlane{
+struct AraPlane : public APlane<int>{
 	public:
-		uint32_t width;
-		uint32_t height;
+		AraPlane( uint32_t width, uint32_t height, uint8_t depth ) : APlane( width, height, depth ) { }
 		
-		std::vector<int> data;
-		
-		AraPlane( uint32_t width, uint32_t height )
-			:	width(width), height(height), data( width*height, 0 ) { }
-		
-		int value( unsigned x, unsigned y ) const{
-			//TODO: only in debug?
-			if( x >= width || y >= height )
-				std::cout << "Out of bounds: requested " << x << "x" << y << " in (" << width << "x" << height << ")\n";
-			return data[ x + y*width ];
-		}
-		
-		void setValue( unsigned x, unsigned y, int value ){
-			//TODO: only in debug?
-			if( x >= width || y >= height )
-				std::cout << "Out of bounds: set " << x << "x" << y << " in (" << width << "x" << height << ")\n";
-			data[ x + y*width ] = value;
-		}
-		
-		QImage asImage( unsigned depth ) const;
-		
-		void reduceDepth( unsigned amount ){
-			for( auto& val : data )
-				val >>= amount;
-		}
+		QImage asImage() const;
 };
 
 class AraImage{
@@ -287,20 +264,6 @@ class AraImage{
 					b.count += abs( data );
 				return b;
 			}
-		};
-		
-		struct Pixel{
-			int color[3];
-			
-			Pixel() { }
-			Pixel( int r, int g, int b){
-				color[0] = r;
-				color[1] = g;
-				color[2] = b;
-			}
-			
-			static Pixel encode( int r, int g, int b, int transform );
-			static Pixel decode( const std::vector<uint8_t>& data, unsigned& pos, int transform );
 		};
 		
 		struct AraColorBlock{
