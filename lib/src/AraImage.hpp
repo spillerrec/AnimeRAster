@@ -42,8 +42,7 @@ class AraImage{
 		
 		enum Compression{
 			NONE = 0x0
-		,	LINES = 0x1
-		,	BLOCKS = 0x2
+		,	BLOCKS = 0x1
 		};
 	
 	private:
@@ -290,28 +289,15 @@ class AraImage{
 		unsigned plane_amount() const{ return ( channels == GRAY ) ? 1 : 3; }
 		unsigned plane_height( int index ) const{ return height / (( sub_sampling == 1 && index != 0 ) ? 2 : 1); }
 		unsigned plane_width( int index ) const{ return width / (( sub_sampling == 1 && index != 0 ) ? 2 : 1); }
-		void read_lines( std::vector<uint8_t> types, std::vector<uint8_t> data, unsigned offset );
-		void read_block( int plane, unsigned y, unsigned amount, int enabled_types ) const;
-		void read_blocks( std::vector<uint8_t> data );
+		
+		void readNone( std::vector<uint8_t> data );
+		void readBlocks( std::vector<uint8_t> data );
 		void readColorBlocks( std::vector<uint8_t> data );
 		
-		struct Chunk{
-			std::vector<int> data;
-			std::vector<int> types;
-			std::vector<int> settings;
-		};
 		
 		std::vector<uint8_t> compress_none() const;
-		std::vector<uint8_t> compress_lines() const;
-		Chunk compress_lines_chunk( int plane, unsigned y, unsigned amount, int enabled_types ) const;
 		std::vector<uint8_t> compress_blocks( Config config ) const;
 		std::vector<uint8_t> compressColorBlocks( Config config ) const;
-		
-		Chunk compress_blocks_sub( unsigned p
-			,	unsigned x, unsigned y, unsigned amount
-			,	int enabled_types, Config config
-			) const;
-		std::vector<uint8_t> compress_blocks_extreme( Config config ) const;
 		
 		void debug_types( std::vector<uint8_t> types ) const;
 };

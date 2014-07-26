@@ -301,21 +301,15 @@ bool AraImage::read( QIODevice &dev ){
 	
 	switch( compression ){
 		case NONE:{
-				vector<uint8_t> types( NORMAL, lines );
-				read_lines( types, data, 0 );
-				break;
-			};
-			
-		case LINES:{
-				vector<uint8_t> types;
-				for( unsigned i=0; i<lines; i++ )
-					types.push_back( data[i] );
-				read_lines( types, data, lines );
+				readNone( data );
 				break;
 			};
 			
 		case BLOCKS:{
-				read_blocks( data );
+				if( channels == RGB )
+					readColorBlocks( data );
+				else
+					readBlocks( data );
 				break;
 			};
 		
@@ -327,35 +321,20 @@ bool AraImage::read( QIODevice &dev ){
 	return false;
 }
 
-void AraImage::read_lines( vector<uint8_t> types, vector<uint8_t> data, unsigned offset ){
+void AraImage::readNone( vector<uint8_t> data ){
 	planes.clear();
-	
-	debug_types( types );
-	
-	unsigned t = 0;
-	unsigned limit = pow( 2, depth );
+	unsigned pos = 0;
 	
 	for( unsigned p=0; p<plane_amount(); p++ ){
 		planes.emplace_back( ValuePlane( plane_width( p ), plane_height( p ), depth ) );
 		
-		for( unsigned iy=0; iy<planes[p].height; iy++ ){
-			auto f = getFilter( (Type)types[t++] );
-			
-			for( unsigned ix=0; ix<planes[p].width; ix++ ){
-				unsigned val = data[offset++] + (this->*f)( p, ix, iy );
-				planes[p].setValue( ix, iy, val % limit );
-			}
-		}
-		
+		for( unsigned iy=0; iy<planes[p].height; iy++ )
+			for( unsigned ix=0; ix<planes[p].width; ix++ )
+				planes[p].setValue( ix, iy, data[pos++] );	
 	}
 }
 
-void AraImage::read_blocks( vector<uint8_t> data ){
-	if( channels == RGB ){
-		readColorBlocks( data );
-		return;
-	}
-	
+void AraImage::readBlocks( vector<uint8_t> data ){
 	unsigned pos = 0;
 	unsigned block_size = data[pos++];
 	
@@ -413,7 +392,6 @@ bool AraImage::write( QIODevice &dev, Compression level ){
 	vector<uint8_t> data;
 	switch( compression ){
 		case NONE:   data = compress_none(); break;
-		case LINES:  data = compress_lines(); break;
 		case BLOCKS: data = make_optimal_configuration(); //compress_blocks( config ); break;
 	};
 	
@@ -491,94 +469,6 @@ vector<uint8_t> AraImage::compress_none() const{
 		return packTo1bit( data );
 	else
 		return packTo8bit( data );
-}
-
-AraImage::Chunk AraImage::compress_lines_chunk( int p, unsigned y, unsigned amount, int enabled_types ) const{
-	Chunk chunk;
-	
-	for( unsigned iy=y; iy<min(y+amount, planes[p].height); iy++ ){
-		//Try all the possibilities
-		AraLine best( NORMAL, iy, *this, p );
-		AraLine sub( SUB, iy, *this, p );
-		
-		//Pick the one which has the smallest sum
-		if( sub.count < best.count && enabled_types & SUB_ON )
-			best = sub;
-		
-		if( iy > 0 ){
-			AraLine up( UP, iy, *this, p );
-			AraLine avg( AVG, iy, *this, p );
-			AraLine paeth( PAETH, iy, *this, p );
-			
-			if( up.count < best.count && enabled_types & UP_ON )
-				best = up;
-			if( avg.count < best.count && enabled_types & AVG_ON )
-				best = avg;
-			if( paeth.count < best.count && enabled_types & PAETH_ON )
-				best = paeth;
-		}
-		
-		//Write it out
-		chunk.types.push_back( best.type ); //TODO: temp
-		for( auto val : best.data )
-			chunk.data.push_back( val );
-	}
-	
-	return chunk;
-}
-
-vector<uint8_t> AraImage::compress_lines() const{
-	vector<int> out;
-	vector<uint8_t> types;
-	
-	unsigned amount = 1; //TODO:
-	vector<int> enabled_types{ ALL_ON
-		,	ALL_ON & ~NORMAL_ON
-		,	ALL_ON & ~SUB_ON
-		,	ALL_ON & ~UP_ON
-		,	ALL_ON & ~AVG_ON
-		,	ALL_ON & ~PAETH_ON
-		
-		//*
-		,	ALL_ON & ~SUB_ON & ~UP_ON
-		,	ALL_ON & ~AVG_ON & ~UP_ON
-		,	ALL_ON & ~AVG_ON & ~SUB_ON
-		//*/
-		};
-	
-	for( unsigned p=0; p<planes.size(); p++ )
-		for( unsigned iy=0; iy<planes[p].height; iy+=amount ){
-			vector<Chunk> chunks;
-			
-			for( auto types : enabled_types )
-				chunks.emplace_back( compress_lines_chunk( p, iy, amount, types ) );
-			
-			Chunk best;
-			unsigned size = -1;
-			for( auto chunk : chunks ){
-				auto data = depth > 8 ? packTo16bit( chunk.data ) : packTo8bit( chunk.data );
-				auto current = lzmaCompress( data ).size();
-				if( current < size ){
-					best = chunk;
-					size = current;
-				}
-			}
-			
-			//Write it out
-			for( auto val : best.types )
-				types.push_back( val );
-			for( auto val : best.data )
-				out.push_back( val );
-			
-			cout << "Progress: " << iy << " of " << planes[p].height << " in plane " << p << endl;
-		}
-	
-	auto data = depth > 8 ? packTo16bit( out ) : packTo8bit( out );
-	cout << "Type amount: " << types.size() << endl;
-	for( auto dat : data )
-		types.push_back( dat );
-	
-	return types;
 }
 
 vector<uint8_t> AraImage::compress_blocks( Config config ) const{
@@ -688,116 +578,6 @@ vector<uint8_t> AraImage::compressColorBlocks( Config config ) const{
 		for( auto set : settings )
 			data.push_back( set );
 //			data.push_back( color_map.translate( set ) );
-	}
-	
-	for( auto pack : packed )
-		data.push_back( pack );
-	
-	return data;
-}
-
-AraImage::Chunk AraImage::compress_blocks_sub( unsigned p
-	,	unsigned x, unsigned y, unsigned amount
-	,	int enabled_types, AraImage::Config config
-	) const{
-	Chunk chunk;
-	config.types = (EnabledTypes)enabled_types;
-	
-	for( unsigned iy=y; iy<min(y+config.block_size*amount, planes[p].height); iy+=config.block_size ){
-		vector<AraBlock> blocks;
-		
-		//Make blocks
-		for( unsigned ix=x; ix<planes[p].width; ix+=config.block_size )
-			blocks.emplace_back( best_block( ix, iy, p, config, Entropy() ) );
-		
-		//Output
-		for( auto block : blocks )
-			for( auto data : block.data )
-				chunk.data.push_back( data );
-		
-		for( auto block : blocks ){
-			for( auto type : block.types )
-				chunk.types.push_back( type );
-			for( auto set : block.settings )
-				chunk.settings.push_back( set );
-		}
-	}
-	
-	return chunk;
-}
-
-vector<uint8_t> AraImage::compress_blocks_extreme( AraImage::Config config ) const{
-	vector<int> out;
-	vector<uint8_t> types{ config.block_size };
-	vector<uint8_t> settings;
-	
-	unsigned amount = 1;
-	auto base = config.types;
-	vector<int> enabled_types{
-		//*
-			base & ~AVG_ON & ~SUB_ON
-		,	base & ~AVG_ON & ~UP_ON
-		,	base & ~SUB_ON & ~UP_ON
-		//*/
-		
-		,	base & ~PAETH_ON
-		,	base & ~AVG_ON
-		,	base & ~UP_ON
-		,	base & ~SUB_ON
-		,	base & ~DIFF_ON
-		,	base & ~NORMAL_ON
-		
-		,	base
-		};
-	
-	for( unsigned p=0; p<planes.size(); p++ )
-		for( unsigned iy=0; iy<planes[p].height; iy+=config.block_size*amount ){
-			Chunk best;
-			unsigned best_size = -1;
-			cout << "Line: " << iy << endl;
-			for( auto t : enabled_types ){
-				auto chunk = compress_blocks_sub( p, 0, iy, amount, t, config );
-				
-				vector<uint8_t> packed;
-				if( depth > 8 )
-					packed = packTo16bit( chunk.data );
-				else
-					packed = packTo8bit( chunk.data );
-				auto new_size = lzmaCompress( packed ).size();
-				if( new_size < best_size ){
-					best_size = new_size;
-			//		cout << "Picking new best chunk" << best_size << endl;
-					best = chunk;
-				}
-			//	else if( new_size == best_size )
-			//		cout << "Same Size" << endl;
-			}
-			
-			//Output
-			for( auto data : best.data )
-				out.push_back( data );
-			for( auto type : best.types )
-				types.push_back( type );
-			for( auto set : best.settings )
-				settings.push_back( set );
-		}
-	
-	vector<uint8_t> packed;
-	if( depth > 8 )
-		packed = packTo16bit( out );
-	else
-		packed = packTo8bit( out );
-	
-	vector<uint8_t> data;
-	//Add settings
-	if( config.save_settings ){
-	//	cout << "Types size: " << types.size() << endl;
-	//	cout << "Settings size: " << settings.size() << endl;
-	
-		for( auto type : types )
-			data.push_back( type );
-		for( auto set : settings )
-			data.push_back( set );
 	}
 	
 	for( auto pack : packed )
