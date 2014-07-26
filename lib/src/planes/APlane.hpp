@@ -86,15 +86,15 @@ struct APlane{
 		
 		ValType value( unsigned x, unsigned y ) const{
 			//TODO: only in debug?
-			if( x >= width || y >= height )
-				std::cout << "Out of bounds: requested " << x << "x" << y << " in (" << width << "x" << height << ")\n";
+		//	if( x >= width || y >= height )
+		//		std::cout << "Out of bounds: requested " << x << "x" << y << " in (" << width << "x" << height << ")\n";
 			return data[ x + y*width ];
 		}
 		
 		void setValue( unsigned x, unsigned y, ValType value ){
 			//TODO: only in debug?
-			if( x >= width || y >= height )
-				std::cout << "Out of bounds: set " << x << "x" << y << " in (" << width << "x" << height << ")\n";
+		//	if( x >= width || y >= height )
+		//		std::cout << "Out of bounds: set " << x << "x" << y << " in (" << width << "x" << height << ")\n";
 			data[ x + y*width ] = value;
 		}
 		
@@ -225,7 +225,7 @@ struct APlane{
 		,	ALL_ON = 0xFFFF
 		};
 		
-		FilterFunc getFilter( Type t ) const{
+		static FilterFunc getFilter( Type t ){
 			switch( t ){
 				case UP:            return &APlane<ValType>::up_predict;
 				case SUB:           return &APlane<ValType>::sub_predict;
@@ -245,27 +245,31 @@ struct APlane{
 			}
 		};
 		
-		bool typeIsRight( int t ) const{ return t >= RIGHT; } //TODO: this will not work if we reorder!
+		static bool typeIsRight( int t ){ return t >= RIGHT; } //TODO: this will not work if we reorder!
 		
-		bool isTypeOn( int t, EnabledTypes types ) const{
+		static EnabledTypes enabledType( int t ){
 			switch( t ){
-				case UP:            return types & ~UP_ON;
-				case SUB:           return types & ~SUB_ON;
-				case UP_LEFT:       return types & ~UP_LEFT_ON;
-				case AVG:           return types & ~AVG_ON;
-				case PAETH:         return types & ~PAETH_ON;
-				case RIGHT:         return types & ~RIGHT_ON;
-				case NORMAL:        return types & ~NORMAL_ON;
-				case AVG_RIGHT:     return types & ~AVG_RIGHT_ON;
-				case UP_RIGHT:      return types & ~UP_RIGHT_ON;
-				case STRANGE:       return types & ~STRANGE_ON;
-				case STRANGE_RIGHT: return types & ~STRANGE_RIGHT_ON;
-				case PAETH_RIGHT:   return types & ~PAETH_RIGHT_ON;
+				case UP:            return UP_ON;
+				case SUB:           return SUB_ON;
+				case UP_LEFT:       return UP_LEFT_ON;
+				case AVG:           return AVG_ON;
+				case PAETH:         return PAETH_ON;
+				case RIGHT:         return RIGHT_ON;
+				case NORMAL:        return NORMAL_ON;
+				case AVG_RIGHT:     return AVG_RIGHT_ON;
+				case UP_RIGHT:      return UP_RIGHT_ON;
+				case STRANGE:       return STRANGE_ON;
+				case STRANGE_RIGHT: return STRANGE_RIGHT_ON;
+				case PAETH_RIGHT:   return PAETH_RIGHT_ON;
 				
 				default:
 					std::cout << "typeIsRight(): N/A! " << t << std::endl;
-					return false;
+					return ALL_ON;
 			};
+		}
+		
+		static bool isTypeOn( int t, EnabledTypes types ){
+			return types & enabledType( t );
 		}
 };
 

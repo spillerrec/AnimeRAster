@@ -18,16 +18,41 @@
 #define VALUE_PLANE_HPP
 
 #include "APlane.hpp"
+#include "../Entropy.hpp"
 
 #include <QImage>
 
 struct ValuePlane : public APlane<int>{
+	private:
+		struct Block{
+			unsigned x;
+			unsigned y;
+			unsigned size;
+			unsigned count{ 0 };
+			Type type;
+			Entropy entropy;
+			
+			Block( const ValuePlane& plane, Type t, unsigned x, unsigned y, unsigned size );
+			
+			void data( const ValuePlane& plane, std::vector<int>& out ) const;
+		};
+		
+		double blockWeight( const Block& block, const Entropy& base ) const{
+			//TODO: do this selection in Entropy?
+			return block.count;
+		//	return base.entropy( block.entropy );
+		}
+		
+		Block bestBlock( unsigned x, unsigned y, unsigned block_size, EnabledTypes types, const Entropy& base ) const;
+		
 	public:
 		ValuePlane( uint32_t width, uint32_t height, uint8_t depth ) : APlane( width, height, depth ) { }
 		
 		QImage asImage() const; //TODO:
 		
 		void loadBlocks( const std::vector<uint8_t>& data, uint8_t block_size, unsigned type_pos, unsigned& pos );
+		
+		std::vector<uint8_t> saveBlocks( uint8_t block_size, EnabledTypes types ) const;
 };
 
 #endif

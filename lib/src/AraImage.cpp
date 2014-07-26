@@ -472,7 +472,22 @@ vector<uint8_t> AraImage::compress_none() const{
 vector<uint8_t> AraImage::compress_blocks( Config config ) const{
 	if( channels == RGB )
 		return compressColorBlocks( config );
+	/*
+	//Disable right filters
+	unsigned types = config.types;
+	for( unsigned t=0; t<ValuePlane::TYPE_COUNT-2; t++ )
+		if( ( ValuePlane::typeIsRight( t ) && !config.both_directions ) )
+			types &= ~ValuePlane::enabledType( t );
 	
+	
+	vector<uint8_t> out{ config.block_size };
+	out.reserve( width * height * planes.size() );
+	for( unsigned p=0; p<planes.size(); p++ )
+		for( auto val : planes[p].saveBlocks( config.block_size, (ValuePlane::EnabledTypes)types ) )
+			out.emplace_back( val );
+		
+	return out;
+/*/
 	vector<int> out;
 	vector<uint8_t> types{ config.block_size };
 	vector<uint8_t> settings;
@@ -529,6 +544,7 @@ vector<uint8_t> AraImage::compress_blocks( Config config ) const{
 		data.push_back( pack );
 	
 	return data;
+//*/
 }
 
 vector<uint8_t> AraImage::compressColorBlocks( Config config ) const{
