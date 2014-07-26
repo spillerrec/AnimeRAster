@@ -342,7 +342,7 @@ void AraImage::read_lines( vector<uint8_t> types, vector<uint8_t> data, unsigned
 			auto f = getFilter( (Type)types[t++] );
 			
 			for( unsigned ix=0; ix<planes[p].width; ix++ ){
-				unsigned val = data[offset++] + 128;//(this->*f)( p, ix, iy );
+				unsigned val = data[offset++] + (this->*f)( p, ix, iy );
 				planes[p].setValue( ix, iy, val % limit );
 			}
 		}
@@ -377,7 +377,7 @@ void AraImage::read_blocks( int plane
 			for( unsigned jy=iy; jy < b_h; jy++ )
 				for( unsigned jx=ix; jx < b_w; jx++ ){
 				//	cout << "j: " << jx << "x" << jy << endl;
-					unsigned val = data[pos++] + 128;// + (this->*f)( plane, jx, jy );
+					unsigned val = data[pos++] + (this->*f)( plane, jx, jy );
 					planes[plane].setValue( jx, jy, val % limit );
 				}
 		}
@@ -534,11 +534,11 @@ void AraImage::readColorBlocks( vector<uint8_t> data ){
 			
 			for( unsigned jy=iy; jy < b_h; jy++ )
 				for( unsigned jx=ix; jx < b_w; jx++ ){
-					auto pixel = Pixel::decode( data, pos, 0 );//color );
+					auto pixel = Pixel::decode( data, pos, color );
 					
 					//Revert filtering
 					for( unsigned p=0; p<3; p++ ){
-						int val =  pixel.color[p] + 128;//(this->*f)( p, jx, jy );
+						int val =  pixel.color[p] + (this->*f)( p, jx, jy );
 						planes[p].setValue( jx, jy, unsigned(val) % limit );
 					}
 				}
@@ -1163,7 +1163,7 @@ std::vector<uint8_t> AraImage::make_optimal_configuration() const{
 	config.search_size = 4;
 	config.types = EnabledTypes(ALL_ON & ~DIFF_ON & ~PAETH_ON /*& ~RIGHT_ON*/ & ~PREV_ON );
 	config.multi_penalty = 0.1;
-	config.both_directions = true;
+	config.both_directions = false;
 	config.save_settings = true;
 	config.diff_save_offset = 0;
 	

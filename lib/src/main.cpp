@@ -103,6 +103,8 @@ int main( int argc, char* argv[] ){
 		
 		//TODO: skip if not loaded
 		
+	//	img.limitTo8Bit();
+		
 		//Write
 		QFile copy( temp_name );
 		if( copy.open( QIODevice::WriteOnly ) ){

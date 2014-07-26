@@ -54,6 +54,11 @@ struct AraPlane{
 		}
 		
 		QImage asImage( unsigned depth ) const;
+		
+		void reduceDepth( unsigned amount ){
+			for( auto& val : data )
+				val >>= amount;
+		}
 };
 
 class AraImage{
@@ -103,6 +108,14 @@ class AraImage{
 		
 		QImage outputPlanes() const;
 		QImage outputImage() const;
+		
+		void limitTo8Bit(){
+			if( depth > 8 ){
+				for( auto& plane : planes )
+					plane.reduceDepth( depth - 8 );
+				depth = 8;
+			}
+		}
 		
 	public: //TODO:
 		typedef int (AraImage::*FilterFunc)( int,unsigned,unsigned ) const;
