@@ -185,19 +185,19 @@ class AraImage{
 		
 		bool isTypeOn( int t, EnabledTypes types ) const{
 			switch( t ){
-				case UP:            return types & ~UP_ON;
-				case SUB:           return types & ~SUB_ON;
-				case UP_LEFT:       return types & ~UP_LEFT_ON;
-				case AVG:           return types & ~AVG_ON;
-				case PAETH:         return types & ~PAETH_ON;
-				case RIGHT:         return types & ~RIGHT_ON;
-				case NORMAL:        return types & ~NORMAL_ON;
-				case PREV:          return types & ~PREV_ON;
-				case AVG_RIGHT:     return types & ~AVG_RIGHT_ON;
-				case UP_RIGHT:      return types & ~UP_RIGHT_ON;
-				case STRANGE:       return types & ~STRANGE_ON;
-				case STRANGE_RIGHT: return types & ~STRANGE_RIGHT_ON;
-				case PAETH_RIGHT:   return types & ~PAETH_RIGHT_ON;
+				case UP:            return types & UP_ON;
+				case SUB:           return types & SUB_ON;
+				case UP_LEFT:       return types & UP_LEFT_ON;
+				case AVG:           return types & AVG_ON;
+				case PAETH:         return types & PAETH_ON;
+				case RIGHT:         return types & RIGHT_ON;
+				case NORMAL:        return types & NORMAL_ON;
+				case PREV:          return types & PREV_ON;
+				case AVG_RIGHT:     return types & AVG_RIGHT_ON;
+				case UP_RIGHT:      return types & UP_RIGHT_ON;
+				case STRANGE:       return types & STRANGE_ON;
+				case STRANGE_RIGHT: return types & STRANGE_RIGHT_ON;
+				case PAETH_RIGHT:   return types & PAETH_RIGHT_ON;
 				
 				default:
 					std::cout << "typeIsRight(): N/A! " << t << std::endl;
@@ -227,7 +227,7 @@ class AraImage{
 				data.reserve( width * height );
 			}
 			
-			AraBlock( Type t, unsigned x, unsigned y, unsigned size, const AraImage& img, int plane );
+			AraBlock( Type t, unsigned x, unsigned y, unsigned size, const AraImage& img, int plane, int dx=0, int dy=0 );
 			
 			static AraBlock subtract( const AraBlock& b1, const AraBlock& b2 ){
 				auto b = b1;
@@ -244,6 +244,7 @@ class AraImage{
 			Type type{ NORMAL };
 			int ctype;
 			std::vector<int> data;
+			std::vector<uint8_t> settings;
 			unsigned count{ 0 };
 			Entropy entropy;
 			double weight;

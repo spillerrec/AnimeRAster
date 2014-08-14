@@ -563,7 +563,12 @@ vector<uint8_t> AraImage::compressColorBlocks( Config config ) const{
 			for( auto data : block.data )
 				out.push_back( data );
 			types.push_back( block.type );
-			settings.push_back( block.ctype );
+			types.push_back( block.ctype );
+			for( auto set: block.settings )
+				settings.push_back( set );
+		//	cout << (int)block.settings[0] << "\t" << (int)block.type << endl;
+		//	if( block.settings[0] != 0 )
+		//		cout << (int)block.type << endl;
 		}
 	}
 	
@@ -602,15 +607,23 @@ vector<uint8_t> AraImage::compressColorBlocks( Config config ) const{
 
 
 AraImage::AraBlock::AraBlock( AraImage::Type t, unsigned x, unsigned y, unsigned size
-	, const AraImage& img, int plane )
+	, const AraImage& img, int plane, int dx, int dy )
 	:	AraBlock( t, x, y, img, plane, size ) {
 	auto filter = img.getFilter( t );
 	for( unsigned iy=y; iy < y+height; iy++ )
 		for( unsigned ix=x; ix < x+width; ix++ ){
-			auto val = img.planes[plane].value( ix, iy ) - (img.*filter)( plane, ix, iy );
-			data.emplace_back( val );
-			entropy.add( val );
-			count += abs( val );
+			if( t == NORMAL && ( dx != 0 || dy != 0 ) ){
+				auto val = img.planes[plane].value( ix, iy ) - img.planes[plane].value( ix+dx, iy+dy );
+				data.emplace_back( val );
+				entropy.add( val );
+				count += abs( val );
+			}
+			else{
+				auto val = img.planes[plane].value( ix, iy ) - (img.*filter)( plane, ix+dx, iy+dy );
+				data.emplace_back( val );
+				entropy.add( val );
+				count += abs( val );
+			}
 		}
 }
 
@@ -641,11 +654,13 @@ AraImage::AraColorBlock AraImage::bestColorBlock( unsigned x, unsigned y, AraIma
 		if( isTypeOn( t, types ) ){
 			if( !( typeIsRight( t ) && !config.both_directions ) ){
 				AraColorBlock block( *this, (Type)t, x, y, config.block_size, base );
+		//		cout << "w: " << block.weight << endl;
 				if( block.weight < best.weight )
 					best = block;
 			}
 		}
 	}
+	//			cout << "-------------" << endl;
 	
 	return best;
 }
@@ -658,7 +673,10 @@ std::vector<uint8_t> AraImage::make_optimal_configuration() const{
 	config.block_size = 8;
 	config.min_block_size = 4;
 	config.search_size = 4;
-	config.types = EnabledTypes(ALL_ON & ~DIFF_ON & ~PAETH_ON /*& ~RIGHT_ON*/ & ~PREV_ON );
+//	config.types = EnabledTypes(ALL_ON & ~DIFF_ON & ~PAETH_ON & ~UP_ON & ~SUB_ON /*& ~RIGHT_ON*/ & ~PREV_ON );
+	config.types = EnabledTypes(NORMAL_ON | AVG_ON | STRANGE_ON | PAETH_ON);
+//	config.types = EnabledTypes(NORMAL_ON);
+//	config.types = EnabledTypes(ALL_ON & ~DIFF_ON & ~UP_ON & ~SUB_ON & ~UP_LEFT_ON & ~RIGHT_ON & ~UP_RIGHT_ON & ~PREV_ON );
 	config.multi_penalty = 0.1;
 	config.both_directions = false;
 	config.save_settings = true;
@@ -715,6 +733,10 @@ void AraImage::debug_types( vector<uint8_t> types ) const{
 		cout << "\t" << (int)count << endl;
 }
 
+int box_position( int x, int y ){
+	int line = max( x, y );
+	return line * (2 + 2*(line-1)) / 2 + y + line - x;
+}
 
 AraImage::AraColorBlock::AraColorBlock( const AraImage& img, Type t, unsigned x, unsigned y, unsigned size, const Entropy& base )
 	:	type(t) {
@@ -725,6 +747,40 @@ AraImage::AraColorBlock::AraColorBlock( const AraImage& img, Type t, unsigned x,
 	
 	//Start with untouched colors
 	double best = blockWeight( blocks[0], base ) + blockWeight( blocks[1], base ) + blockWeight( blocks[2], base );
+	double best1 = blockWeight( blocks[0], base );
+	double best_zero = best1;
+	int best_x=0, best_y=0;
+	
+	for( int dy=0; dy<8; dy++ )
+		for( int dx=-8; dx<8; dx++ ){
+			if( int(x)-dx < 0 || int(y)-dy < 0 )
+				continue;
+		//	if( dx == 1 || dy == 1 || dx == -1 )
+		//		continue;
+			vector<AraBlock> test{ AraBlock( t, x, y, size, img, 0, -dx, -dy )
+				,	AraBlock( t, x, y, size, img, 1, -dx, -dy )
+				,	AraBlock( t, x, y, size, img, 2, -dx, -dy )
+				};
+			
+			double current = blockWeight( test[0], base ) + blockWeight( test[1], base ) + blockWeight( test[2], base );
+			if( current + abs(best_x) + abs(best_y) < best1*0.75 ){ //TODO: weight?
+				best_x = dx;
+				best_y = dy;
+				best1 = current;
+			}
+		}
+//	if( best1 < best_zero )
+//		cout << best_x << "x" << best_y << " - " << best1 << " < " << best_zero << endl;
+//	settings.push_back( best_x );
+//	settings.push_back( best_y );
+//	settings.push_back( best_x << 4 + best_y );
+	settings.push_back( box_position( best_x, best_y ) );
+	
+	blocks = { { t, x, y, size, img, 0, -best_x, -best_y }
+		,	{ t, x, y, size, img, 1, -best_x, -best_y }
+		,	{ t, x, y, size, img, 2, -best_x, -best_y }
+		};
+	
 	ctype = 0;
 	vector<AraBlock> out = blocks;
 	

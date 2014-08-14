@@ -89,8 +89,9 @@ void ValuePlane::loadBlocks( const vector<uint8_t>& data, uint8_t block_size, un
 
 vector<uint8_t> ValuePlane::saveBlocks( uint8_t block_size, ValuePlane::EnabledTypes enabled_types ) const{
 	vector<uint8_t> data;
-	vector<int> out;
+	vector<int> out, out2;
 	out.reserve( width * height );
+	out2.reserve( width * height );
 	
 	Entropy entropy;
 	
@@ -99,8 +100,8 @@ vector<uint8_t> ValuePlane::saveBlocks( uint8_t block_size, ValuePlane::EnabledT
 			auto block = bestBlock( ix, iy, block_size, enabled_types, entropy );
 			entropy.add( block.entropy );
 			
-			block.data( *this, out );
 			data.push_back( block.type );
+			block.data( *this, out );
 		}
 	
 	for( auto pack : ( depth > 8 ) ? packTo16bit( out ) : packTo8bit( out ) )
