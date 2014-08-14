@@ -17,6 +17,8 @@
 #ifndef ARA_FILE_HPP
 #define ARA_FILE_HPP
 
+#include <QIODevice>
+
 #include <stdint.h>
 #include <vector>
 
@@ -34,31 +36,38 @@ class AraFile{
 		
 		/** Bits:
 		 *    0-1:
-		 *      00 - gray
-		 *      01 - RGB
-		 *      02 - YUV
-		 *      03 - CMYK
+		 *      0x0 - gray
+		 *      0x1 - RGB
+		 *      0x2 - YUV
+		 *      0x3 - CMYK
 		 *    2-4: Reserved
 		 *    5-6: sub-sampling
-		 *    7:  on = contains alpha
-		 */
+		 *    7:  on = contains alpha */
 		uint8_t channels;
 		
 		static const unsigned COLOR_MODEL_MASK = 0x03;
 		static const unsigned ALPHA_MASK = 0x80;
 		static const unsigned SUB_SAMPLING_MASK = 0x60;
 		
-		/** Color depth per channel */
-		uint8_t depth{ 8 };
+		/** Color information, bits:
+		 *     0-3: color depth per channel, where 0x0 is 1 bit and 0xF is 16 bits
+		 *     4-7: color space:
+		 *       0x0 - UNKNOWN
+		 *       0x1 - sRGB
+		 *       0x2 - rec. 601
+		 *       0x3 - rec. 709 */
+		uint8_t color;
 		
 		// ----- 32 bits -----
 		
-		/** UNKNOWN, sRGB, rec. 601, rec. 709 */
-		uint8_t color_space;
+		/// A value by the encoder, describing the search space size. Higher is bigger
+		uint8_t search_space;
 		
-		uint8_t compression;
-		uint8_t compression_level;
-		uint8_t compression_options;
+		/// 0x01 indicates animation, other bits reserved
+		uint8_t animation;
+		
+		/// Amount of frames
+		uint16_t frame_count;
 		
 		// ----- 32 bits -----
 		
@@ -69,7 +78,7 @@ class AraFile{
 		uint32_t height;
 		
 		/// Pixel aspect ratio
-		uint32_t pixel_ratio; //TODO:
+		uint32_t pixel_ratio; //TODO: how to represent?
 		
 	public:
 		enum ColorModel{
@@ -94,7 +103,9 @@ class AraFile{
 		void setSubSampling( SubSampling sampling ){ channels = (channels & ~SUB_SAMPLING_MASK) + sampling; }
 		void setAlpha( bool contains ){              channels = (channels & ~ALPHA_MASK)        + ( contains ? ALPHA_MASK : 0 ); }
 		
-		
+	public:
+		bool read( QIODevice &dev );
+		bool write( QIODevice &dev );
 };
 
 #endif
