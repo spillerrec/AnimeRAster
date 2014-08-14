@@ -18,8 +18,8 @@ win32{
 HEADERS += src/planes/PixelPlane.hpp src/planes/ValuePlane.hpp src/planes/APlane.hpp
 SOURCES += src/planes/PixelPlane.cpp src/planes/ValuePlane.cpp
 
-HEADERS += src/AraImage.hpp src/Entropy.hpp src/transform.hpp
-SOURCES += src/AraImage.cpp src/Entropy.cpp src/transform.cpp src/main.cpp
+HEADERS += src/AraImage.hpp src/AraFile.hpp src/AraFrame.hpp src/AraFragment.hpp src/Entropy.hpp src/transform.hpp
+SOURCES += src/AraImage.cpp src/AraFile.cpp src/AraFrame.cpp src/AraFragment.cpp src/Entropy.cpp src/transform.cpp src/main.cpp
 
 
 
