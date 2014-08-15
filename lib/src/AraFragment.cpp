@@ -19,3 +19,11 @@
 using namespace std;
 
 
+bool AraFragment::read( QIODevice &dev ){
+	return false;
+}
+
+bool AraFragment::write( QIODevice &dev ){
+	return false;
+}
+

@@ -14,28 +14,20 @@
 	along with AnimeRAster.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef ARA_FRAGMENT_HPP
-#define ARA_FRAGMENT_HPP
+#ifndef DEVICE_HPP
+#define DEVICE_HPP
 
 #include <QIODevice>
 
-#include <stdint.h>
-#include <vector>
 
+uint8_t read8( QIODevice &dev );
+uint16_t read16( QIODevice &dev );
+uint32_t read32( QIODevice &dev );
+float readFloat( QIODevice &dev );
+void write8(  QIODevice &dev, uint8_t  val );
+void write16( QIODevice &dev, uint16_t val );
+void write32( QIODevice &dev, uint32_t val );
+void writeFloat( QIODevice &dev, float val );
 
-class AraFragment{
-	public:
-	//	uint8_t type;
-		uint8_t options; //TODO: specify
-	// TODO: uint16_t
-		uint32_t offset_x;
-		uint32_t offset_y;
-		uint32_t width;
-		uint32_t height;
-		
-	public:
-		bool read( QIODevice &dev );
-		bool write( QIODevice &dev );
-};
 
 #endif

@@ -16,38 +16,9 @@
 
 #include "AraFile.hpp"
 
+#include "device.hpp"
+
 using namespace std;
-
-
-static uint8_t read8( QIODevice &dev ){
-	char byte1 = 0;
-	dev.getChar( &byte1 );
-	return byte1;
-}
-
-static uint16_t read16( QIODevice &dev ){
-	char byte1, byte2;
-	if( !dev.getChar( &byte1 ) )
-		return 0;
-	if( !dev.getChar( &byte2 ) )
-		return 0;
-	return ((uint16_t)byte2 << 8) + (uint8_t)byte1;
-}
-
-static uint32_t read32( QIODevice &dev ){
-	uint16_t byte1 = read16( dev );
-	uint32_t byte2 = read16( dev );
-	return (byte2 << 16) + byte1;
-}
-static float readFloat( QIODevice &dev ){
-	float val;
-	dev.read( (char*)&val, 4 );
-	return val;
-}
-static void write8(  QIODevice &dev, uint8_t  val ){ dev.write( (char*)&val, 1 ); }
-static void write16( QIODevice &dev, uint16_t val ){ dev.write( (char*)&val, 2 ); }
-static void write32( QIODevice &dev, uint32_t val ){ dev.write( (char*)&val, 4 ); }
-static void writeFloat( QIODevice &dev, float val ){ dev.write( (char*)&val, 4 ); }
 
 
 bool AraFile::read( QIODevice &dev ){
@@ -73,8 +44,6 @@ bool AraFile::read( QIODevice &dev ){
 	height       = read32( dev );
 	pixel_ratio  = read32( dev );
 	
-	//TODO: animation and chunks stuff
-	
 	//skip if header is longer than read
 	dev.seek( header_lenght + 6 ); //TODO: doesn't work for sequential devices
 	
@@ -84,5 +53,19 @@ bool AraFile::read( QIODevice &dev ){
 }
 
 bool AraFile::write( QIODevice &dev ){
+	dev.write( "ara", 3 );
+	write8( dev, 0 );
+	
+	write16( dev, 18 );
+	
+	write8( dev, channels );
+	write8( dev, color );
+	write8( dev, search_space=0 );
+	write8( dev, animation );
+	write16( dev, frame_count );
+	write32( dev, width );
+	write32( dev, height );
+	write32( dev, pixel_ratio );
+	
 	return false;
 }

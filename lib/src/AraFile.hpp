@@ -54,8 +54,9 @@ class AraFile{
 		 *     4-7: color space:
 		 *       0x0 - UNKNOWN
 		 *       0x1 - sRGB
-		 *       0x2 - rec. 601
-		 *       0x3 - rec. 709 */
+		 *       0x2 - Adobe RGB
+		 *       0x3 - rec. 601
+		 *       0x4 - rec. 709 */
 		uint8_t color;
 		
 		// ----- 32 bits -----
@@ -102,6 +103,20 @@ class AraFile{
 		void setColorModel( ColorModel model ){      channels = (channels & ~COLOR_MODEL_MASK)  + model; }
 		void setSubSampling( SubSampling sampling ){ channels = (channels & ~SUB_SAMPLING_MASK) + sampling; }
 		void setAlpha( bool contains ){              channels = (channels & ~ALPHA_MASK)        + ( contains ? ALPHA_MASK : 0 ); }
+		
+		unsigned depth() const{ return (color & 0x0F) + 1; }
+		void setDepth( unsigned depth ){ color = (color & 0xF0) + ((depth - 1) & 0x0F); }
+		
+		enum ColorSpace{
+			UNKNOWN = 0x00
+		,	SRGB    = 0x10
+		,	ARGB    = 0x20
+		,	REC601  = 0x30
+		,	REC709  = 0x40
+		};
+		
+		ColorSpace colorSpace() const{ return ColorSpace(color & 0xF0); }
+		void setColorSpace( ColorSpace space ){ color = (color & 0x0F) + space; }
 		
 	public:
 		bool read( QIODevice &dev );

@@ -17,13 +17,24 @@
 #ifndef ARA_FRAME_HPP
 #define ARA_FRAME_HPP
 
+#include <QIODevice>
+
 #include <stdint.h>
 #include <vector>
 
 
 class AraFrame{
 	public:
+	//	uint8_t type;
+		uint8_t fragments_count;
+		uint16_t delay;
+		uint16_t background;
 		
+		std::vector<uint16_t> fragments;
+		
+	public:
+		bool read( QIODevice &dev );
+		bool write( QIODevice &dev );
 };
 
 #endif

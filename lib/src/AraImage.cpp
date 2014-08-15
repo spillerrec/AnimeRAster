@@ -16,6 +16,7 @@
 
 #include "AraImage.hpp"
 
+#include "device.hpp"
 #include "transform.hpp"
 
 using namespace std;
@@ -166,44 +167,6 @@ int AraImage::diff_predict( int plane, unsigned x, unsigned y, int dx, int dy ) 
 	return planes[plane].value( x + dx, y + dy );
 }
 
-
-static uint8_t read8( QIODevice &dev ){
-	char byte1 = 0;
-	dev.getChar( &byte1 );
-	return byte1;
-}
-
-static uint16_t read16( QIODevice &dev ){
-	char byte1, byte2;
-	if( !dev.getChar( &byte1 ) )
-		return 0;
-	if( !dev.getChar( &byte2 ) )
-		return 0;
-	return ((uint16_t)byte2 << 8) + (uint8_t)byte1;
-}
-
-static uint32_t read32( QIODevice &dev ){
-	uint16_t byte1 = read16( dev );
-	uint32_t byte2 = read16( dev );
-	return (byte2 << 16) + byte1;
-}
-static float readFloat( QIODevice &dev ){
-	float val;
-	dev.read( (char*)&val, 4 );
-	return val;
-}
-static void write8( QIODevice &dev, uint8_t val ){
-	dev.write( (char*)&val, 1 );
-}
-static void write16( QIODevice &dev, uint16_t val ){
-	dev.write( (char*)&val, 2 );
-}
-static void write32( QIODevice &dev, uint32_t val ){
-	dev.write( (char*)&val, 4 );
-}
-static void writeFloat( QIODevice &dev, float val ){
-	dev.write( (char*)&val, 4 );
-}
 
 void AraImage::initFromQImage( QImage img ){
 	planes.clear();
