@@ -15,8 +15,9 @@
 */
 
 #include "transform.hpp"
+#include <QDebug> //Just for Q_OS_WIN32
 
-#ifdef win32
+#ifdef Q_OS_WIN32
 	#include "zpaq/libzpaq.h"
 #endif
 #include <lzma.h>
@@ -198,7 +199,7 @@ vector<uint8_t> lzmaCompress( const vector<uint8_t>& in ){
 	return buf;
 }
 
-#ifdef win32
+#ifdef Q_OS_WIN32
 
 void libzpaq::error(const char* msg) {  // print message and exit
 	cout << "Oops: " << msg << endl;
