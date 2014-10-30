@@ -17,6 +17,8 @@
 #ifndef A_PLANE_HPP
 #define A_PLANE_HPP
 
+#include "../Entropy.hpp"
+
 #include <cmath>
 #include <iostream>
 #include <vector>
@@ -271,6 +273,44 @@ struct APlane{
 		static bool isTypeOn( int t, EnabledTypes types ){
 			return types & enabledType( t );
 		}
+		
+		struct Block{
+			Type type{ NORMAL };
+			unsigned x;
+			unsigned y;
+			std::vector<ValType> data;
+			std::vector<uint8_t> types;
+			std::vector<uint8_t> settings;
+			unsigned count{ 0 };
+			Entropy entropy;
+			
+			unsigned width;
+			unsigned height;
+			
+			Block( Type t, unsigned x, unsigned y, const APlane<ValType>& img, unsigned size )
+				:	type(t), x(x), y(y) {
+				types.push_back( t );
+				
+				width = std::min(x+size, img.width) - x;
+				height = std::min(y+size, img.height) - y;
+				data.reserve( width * height );
+			}
+		
+			Block( Type t, unsigned x, unsigned y, unsigned size
+				, const APlane<ValType>& img, int dx, int dy )
+				:	Block( t, x, y, img, size ) {
+				auto filter = img.getFilter( t );
+				for( unsigned iy=y; iy < y+height; iy++ )
+					for( unsigned ix=x; ix < x+width; ix++ ){
+						auto val = ( t == NORMAL && ( dx != 0 || dy != 0 ) )
+							?	img.value( ix, iy ) - img.value( ix+dx, iy+dy )
+							:	img.value( ix, iy ) - (img.*filter)( ix+dx, iy+dy );
+						
+						data.emplace_back( val );
+						AddEntropy( *this, val );
+					}
+			}
+		};
 };
 
 #endif

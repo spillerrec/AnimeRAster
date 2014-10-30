@@ -74,6 +74,7 @@ void ValuePlane::loadBlocks( const vector<uint8_t>& data, uint8_t block_size, un
 		for( unsigned ix=0; ix<width; ix+=block_size ){
 			//Translate settings
 			auto f = getFilter( (Type)data[type_pos++] );
+			auto color = data[type_pos++];
 			
 			//Truncate sizes to not go out of the plane
 			unsigned b_w = min( ix+block_size, width );

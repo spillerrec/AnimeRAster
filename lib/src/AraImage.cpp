@@ -511,6 +511,16 @@ vector<uint8_t> AraImage::compress_blocks( Config config ) const{
 }
 
 vector<uint8_t> AraImage::compressColorBlocks( Config config ) const{
+	PixelPlane image( width, height, depth );
+	for( unsigned iy=0; iy<height; iy++ )
+		for( unsigned ix=0; ix<width; ix++ ){
+			Pixel p;
+			for( unsigned i=0; i<3; i++ )
+				p.color[i] = planes[i].value( ix, iy );
+			image.setValue( ix, iy, p );
+		}
+	return image.save();
+	/*
 	vector<int> out, out2, out3;
 	vector<int> types{ config.block_size };
 	vector<int> settings;
@@ -566,6 +576,7 @@ vector<uint8_t> AraImage::compressColorBlocks( Config config ) const{
 		data.push_back( pack );
 	
 	return data;
+	*/
 }
 
 
@@ -637,8 +648,8 @@ std::vector<uint8_t> AraImage::make_optimal_configuration() const{
 	config.min_block_size = 4;
 	config.search_size = 4;
 //	config.types = EnabledTypes(ALL_ON & ~DIFF_ON & ~PAETH_ON & ~UP_ON & ~SUB_ON /*& ~RIGHT_ON*/ & ~PREV_ON );
-	config.types = EnabledTypes(NORMAL_ON | AVG_ON | STRANGE_ON | PAETH_ON);
-//	config.types = EnabledTypes(NORMAL_ON);
+//	config.types = EnabledTypes(NORMAL_ON | AVG_ON | STRANGE_ON | PAETH_ON);
+	config.types = EnabledTypes(NORMAL_ON);
 //	config.types = EnabledTypes(ALL_ON & ~DIFF_ON & ~UP_ON & ~SUB_ON & ~UP_LEFT_ON & ~RIGHT_ON & ~UP_RIGHT_ON & ~PREV_ON );
 	config.multi_penalty = 0.1;
 	config.both_directions = false;
@@ -713,7 +724,7 @@ AraImage::AraColorBlock::AraColorBlock( const AraImage& img, Type t, unsigned x,
 	double best1 = blockWeight( blocks[0], base );
 	double best_zero = best1;
 	int best_x=0, best_y=0;
-	
+	/*
 	for( int dy=0; dy<8; dy++ )
 		for( int dx=-8; dx<8; dx++ ){
 			if( int(x)-dx < 0 || int(y)-dy < 0 )
@@ -731,13 +742,13 @@ AraImage::AraColorBlock::AraColorBlock( const AraImage& img, Type t, unsigned x,
 				best_y = dy;
 				best1 = current;
 			}
-		}
+		}*/
 //	if( best1 < best_zero )
 //		cout << best_x << "x" << best_y << " - " << best1 << " < " << best_zero << endl;
 //	settings.push_back( best_x );
 //	settings.push_back( best_y );
 //	settings.push_back( best_x << 4 + best_y );
-	settings.push_back( box_position( best_x, best_y ) );
+//	settings.push_back( box_position( best_x, best_y ) );
 	
 	blocks = { { t, x, y, size, img, 0, -best_x, -best_y }
 		,	{ t, x, y, size, img, 1, -best_x, -best_y }
@@ -748,7 +759,7 @@ AraImage::AraColorBlock::AraColorBlock( const AraImage& img, Type t, unsigned x,
 	vector<AraBlock> out = blocks;
 	
 	//Main color iteration
-	for( int main=0; main<3; main++ ){
+	for( int main=0; main<0; main++ ){
 		int second = ( main != 0 ) ? 0 : 1;
 		int third = ( main != 1 && second != 1 ) ? 1 : 2;
 		

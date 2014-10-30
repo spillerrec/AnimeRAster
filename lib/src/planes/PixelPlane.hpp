@@ -127,11 +127,29 @@ inline Pixel strange_right( Pixel a, Pixel b, Pixel c ){
 
 struct PixelPlane : public APlane<Pixel>{
 	public:
+		struct PixelBlock : public Block{
+			int ctype;
+			
+			PixelBlock( const PixelPlane& img, Type t, unsigned x, unsigned y, unsigned size, const Entropy& base );
+		};
+		
+	
+	public:
 		PixelPlane( uint32_t width, uint32_t height, uint8_t depth ) : APlane( width, height, depth ) { }
 		
 		QImage asImage() const; //TODO:
 		
 		void load( const std::vector<uint8_t>& data );
+		
+		std::vector<uint8_t> save() const;
 };
+
+//TODO: template?
+inline void AddEntropy( APlane<Pixel>::Block& p, Pixel& val ){
+	for( auto c : val.color ){
+		p.entropy.add( c );
+		p.count += abs( c );
+	}
+}
 
 #endif
