@@ -89,7 +89,7 @@ Pixel Pixel::decode( const vector<uint8_t>& data, unsigned& pos, int transform )
 void PixelPlane::load( const vector<uint8_t>& data ){
 	//Init variables
 	unsigned block_size = data[0];
-	unsigned limit = pow( 2, depth );
+	unsigned limit = pow( 2, depth ) - 1;
 	unsigned blocks_count = ceil( width / (double)block_size ) * ceil( height / (double)block_size );
 	
 	//Calculate offsets
@@ -115,6 +115,8 @@ void PixelPlane::load( const vector<uint8_t>& data ){
 					//Revert filtering
 					auto val = Pixel::decode( data, pos, color ) + (this->*f)( jx, jy );
 					val.trunc( limit );
+					for( auto& c : val.color ) //TODO: fix this madness
+						c = limit - c;
 					setValue( jx, jy, val );
 				}
 		}

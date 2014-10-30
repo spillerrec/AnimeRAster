@@ -83,7 +83,7 @@ struct APlane{
 		
 		APlane( uint32_t width, uint32_t height, uint8_t depth=8 )
 			:	width(width), height(height), depth(depth), data( width*height, ValType() ) {
-				middle = ValType( pow( 2, depth-1 ) );
+				middle = ValType( pow( 2, depth-1 )-1 );
 			}
 		
 		ValType value( unsigned x, unsigned y ) const{
