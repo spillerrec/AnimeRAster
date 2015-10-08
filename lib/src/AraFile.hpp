@@ -22,13 +22,14 @@
 #include <stdint.h>
 #include <vector>
 
+#include "Codecs/IntCodec.hpp"
 
-class AraFile{
+class AraFile : ACodec{
 	private:
 		// "ara" header
 		
 		/// Format version
-		uint8_t version;
+		UInt8Codec version;
 		
 		// ----- 32 bits -----
 		
@@ -43,7 +44,7 @@ class AraFile{
 		 *    2-4: Reserved
 		 *    5-6: sub-sampling
 		 *    7:  on = contains alpha */
-		uint8_t channels;
+		UInt8Codec channels;
 		
 		static const unsigned COLOR_MODEL_MASK = 0x03;
 		static const unsigned ALPHA_MASK = 0x80;
@@ -57,29 +58,29 @@ class AraFile{
 		 *       0x2 - Adobe RGB
 		 *       0x3 - rec. 601
 		 *       0x4 - rec. 709 */
-		uint8_t color;
+		UInt8Codec color;
 		
 		// ----- 32 bits -----
 		
 		/// A value by the encoder, describing the search space size. Higher is bigger
-		uint8_t search_space;
+		UInt8Codec search_space;
 		
 		/// 0x01 indicates animation, other bits reserved
-		uint8_t animation;
+		UInt8Codec animation;
 		
 		/// Amount of frames
-		uint16_t frame_count;
+		UInt16Codec frame_count;
 		
 		// ----- 32 bits -----
 		
 		/// Canvas width
-		uint32_t width;
+		UInt32Codec width;
 		
 		/// Canvas height
-		uint32_t height;
+		UInt32Codec height;
 		
 		/// Pixel aspect ratio
-		uint32_t pixel_ratio; //TODO: how to represent?
+		UInt32Codec pixel_ratio; //TODO: how to represent?
 		
 	public:
 		enum ColorModel{
@@ -96,16 +97,16 @@ class AraFile{
 		,	SUB_BOTH   = 0x60
 		};
 		
-		bool containsAlpha() const{ return channels & ALPHA_MASK; }
-		ColorModel colorModel(){ return ColorModel(channels & COLOR_MODEL_MASK); }
-		SubSampling subSampling(){ return SubSampling(channels & SUB_SAMPLING_MASK); }
+		bool containsAlpha() const{ return channels() & ALPHA_MASK; }
+		ColorModel colorModel(){ return ColorModel(channels() & COLOR_MODEL_MASK); }
+		SubSampling subSampling(){ return SubSampling(channels() & SUB_SAMPLING_MASK); }
 		
-		void setColorModel( ColorModel model ){      channels = (channels & ~COLOR_MODEL_MASK)  + model; }
-		void setSubSampling( SubSampling sampling ){ channels = (channels & ~SUB_SAMPLING_MASK) + sampling; }
-		void setAlpha( bool contains ){              channels = (channels & ~ALPHA_MASK)        + ( contains ? ALPHA_MASK : 0 ); }
+		void setColorModel( ColorModel model ){      channels = (channels() & ~COLOR_MODEL_MASK)  + model; }
+		void setSubSampling( SubSampling sampling ){ channels = (channels() & ~SUB_SAMPLING_MASK) + sampling; }
+		void setAlpha( bool contains ){              channels = (channels() & ~ALPHA_MASK)        + ( contains ? ALPHA_MASK : 0 ); }
 		
-		unsigned depth() const{ return (color & 0x0F) + 1; }
-		void setDepth( unsigned depth ){ color = (color & 0xF0) + ((depth - 1) & 0x0F); }
+		unsigned depth() const{ return (color() & 0x0F) + 1; }
+		void setDepth( unsigned depth ){ color = (color() & 0xF0) + ((depth - 1) & 0x0F); }
 		
 		enum ColorSpace{
 			UNKNOWN = 0x00
@@ -115,8 +116,8 @@ class AraFile{
 		,	REC709  = 0x40
 		};
 		
-		ColorSpace colorSpace() const{ return ColorSpace(color & 0xF0); }
-		void setColorSpace( ColorSpace space ){ color = (color & 0x0F) + space; }
+		ColorSpace colorSpace() const{ return ColorSpace(color() & 0xF0); }
+		void setColorSpace( ColorSpace space ){ color = (color() & 0x0F) + space; }
 		
 	public:
 		bool read( QIODevice &dev );

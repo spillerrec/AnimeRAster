@@ -29,20 +29,13 @@ bool AraFile::read( QIODevice &dev ){
 	if( m1 != m3 && m1 != 'a' && m2 != 'r' )
 		return false;
 	
-	auto version = read8( dev );
-	if( version > 0 )
+	decode( dev, version );
+	if( version() > 0 )
 		return false;
 	
 	auto header_lenght = read16( dev );
 	
-	channels     = read8( dev );
-	color        = read8( dev );
-	search_space = read8( dev );
-	animation    = read8( dev );
-	frame_count  = read16( dev );
-	width        = read32( dev );
-	height       = read32( dev );
-	pixel_ratio  = read32( dev );
+	decode( dev, channels, color, search_space, animation, frame_count, width, height, pixel_ratio );
 	
 	//skip if header is longer than read
 	dev.seek( header_lenght + 6 ); //TODO: doesn't work for sequential devices
@@ -58,14 +51,14 @@ bool AraFile::write( QIODevice &dev ){
 	
 	write16( dev, 18 );
 	
-	write8( dev, channels );
-	write8( dev, color );
-	write8( dev, search_space=0 );
-	write8( dev, animation );
-	write16( dev, frame_count );
-	write32( dev, width );
-	write32( dev, height );
-	write32( dev, pixel_ratio );
+	channels.write( dev );
+	color.write( dev );
+	(search_space = 0).write( dev );
+	animation.write( dev );
+	frame_count.write( dev );
+	width.write( dev );
+	height.write( dev );
+	pixel_ratio.write( dev );
 	
 	return false;
 }

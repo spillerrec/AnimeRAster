@@ -24,6 +24,9 @@ SOURCES += src/AraImage.cpp src/AraFile.cpp src/AraFrame.cpp src/AraFragment.cpp
 HEADERS += src/device.hpp src/Entropy.hpp src/transform.hpp
 SOURCES += src/device.cpp src/Entropy.cpp src/transform.cpp src/main.cpp
 
+#Codecs
+HEADERS += src/Codecs/ACodec.hpp src/Codecs/IntCodec.hpp
+
 
 
 # Generate both debug and release on Linux (disabled)
