@@ -25,7 +25,6 @@
 #include "planes/FourierPlane.hpp"
 
 #include <QIODevice>
-#include <QImage>
 #include <QDebug>
 
 #include <vector>
@@ -83,57 +82,17 @@ class JpegDecompress{
 			{ return (imageSize() + DCTSIZE-1) / DCTSIZE * (*this)[channel].sampling() / maxSampling(); }
 };
 
-
-class JpegBlock{
-	private:
-		PlaneBase<int16_t> table; //TODO: type?
-		
-		double scale( int ix, int iy ) const
-			{ return 2 * 2 * 4 * (ix==0?sqrt(2):1) * (iy==0?sqrt(2):1); }
-			//NOTE: 4 is defined by JPEG, 2 is from FFTW, last 2???
-		
-		
-	public:
-		JpegBlock();
-		JpegBlock( int16_t* input );
-		
-		void fillDctPlane( DctPlane& dct, const JpegBlock& quant ) const;
-};
-
-JpegBlock::JpegBlock() : table( DCTSIZE, DCTSIZE ) { table.fill( 1 ); }
-JpegBlock::JpegBlock( int16_t* input ) : table( DCTSIZE, DCTSIZE ) {
-	for( unsigned iy=0; iy<DCTSIZE; iy++ ){
-		auto row = table.scan_line( iy );
-		for( unsigned ix=0; ix<DCTSIZE; ix++ )
-			row[ix] = input[iy*DCTSIZE + ix];
-	}
-}
-
-void JpegBlock::fillDctPlane( DctPlane& dct, const JpegBlock& quant ) const{
+void JpegBlock::fillDctPlane( DctPlane& dct, const QuantBlock& quant ) const{
 		for( unsigned iy=0; iy<DCTSIZE; iy++ ){
-		auto in  = table.scan_line( iy );
 		auto out = dct  .scan_line( iy );
-		auto q   = quant.table.scan_line( iy );
 		for( unsigned ix=0; ix<DCTSIZE; ix++ )
-			out[ix] = in[ix] * q[ix] * scale( ix, iy );
+			out[ix] = table[iy][ix] * quant[iy][ix] * scale( ix, iy );
 	}
 }
 
-QImage planeToQImage( const PlaneBase<uint8_t>& p ){
-	QImage out( p.get_width(), p.get_height(), QImage::Format_RGB32 );
-	out.fill( qRgb(0,0,0) );
+JpegImage AnimeRaster::from_jpeg( QIODevice& dev ){
+	JpegImage img;
 	
-	for( int iy=0; iy<out.height(); iy++ ){
-		auto out_row = (QRgb*)out.scanLine( iy );
-		auto in      = p.scan_line( iy );
-		for( int ix=0; ix<out.width(); ix++ )
-			out_row[ix] = qRgb( in[ix], in[ix], in[ix] );
-	}
-	
-	return out;
-}
-
-bool AnimeRaster::from_jpeg( QIODevice& dev ){
 	JpegDecompress jpeg;
 	jpeg.setDevice( dev );
 	jpeg.readHeader();
@@ -142,22 +101,30 @@ bool AnimeRaster::from_jpeg( QIODevice& dev ){
 	auto v_ptr = jpeg_read_coefficients( &jpeg.cinfo );
 	
 	
-	DctPlane dct( {DCTSIZE, DCTSIZE} );
 	for( int ic=0; ic<jpeg.components(); ic++ ){
+		JpegPlane p( jpeg.blockCount( ic ), { jpeg.cinfo.comp_info[ic].quant_table->quantval } );
+		
 		auto blockarr = jpeg.cinfo.mem->access_virt_barray( (j_common_ptr)&jpeg.cinfo, v_ptr[ic], 0, 1, false );
-		JpegBlock quant( (int16_t*)jpeg.cinfo.comp_info[ic].quant_table->quantval );
+		for( unsigned iy=0; iy<p.get_height(); iy++ )
+			for( unsigned ix=0; ix<p.get_width(); ix++ )
+				p.scan_line(iy)[ix] = { blockarr[iy][ix] };
 		
-		auto blocks = jpeg.blockCount( ic );
-		
-		Plane p( blocks*DCTSIZE );
-		for( unsigned iy=0; iy<blocks.height(); iy++ )
-			for( unsigned j=0; j<blocks.width(); j++ ){
-				JpegBlock( blockarr[iy][j] ).fillDctPlane( dct, quant );
-				dct.toPlane( p, {DCTSIZE*j,DCTSIZE*iy}, 255 );
-			}
-		planeToQImage( p ).save( "test" + QString::number(ic) + ".png" );
+		img.planes.emplace_back( std::move( p ) );
 	}
-	return false;
 	
-	return true;
+	return img;
+}
+
+PlaneBase<uint8_t> JpegPlane::toPlane() const{
+	Plane out( getSize() * DCTSIZE );
+	DctPlane dct( {DCTSIZE, DCTSIZE} );
+	
+	for( unsigned iy=0; iy<get_height(); iy++ ){
+		for( unsigned ix=0; ix<get_width(); ix++ ){
+			scan_line( iy )[ix].fillDctPlane( dct, quant );
+			dct.toPlane( out, { DCTSIZE*ix, DCTSIZE*iy }, 255 );
+		}
+	}
+	
+	return out;
 }

@@ -18,11 +18,74 @@
 #ifndef JPEG_IMAGE_HPP
 #define JPEG_IMAGE_HPP
 
+#include "planes/PlaneBase.hpp"
+
 class QIODevice;
+
+namespace Overmix{ class DctPlane; }
 
 namespace AnimeRaster{
 
-bool from_jpeg( QIODevice& dev );
+template<typename T>
+class Block{
+	private:
+		static constexpr int DCTSIZE = 8;
+		T items[DCTSIZE*DCTSIZE];
+		
+	public:
+		Block( int init ){
+			for( auto& val : items )
+				val = init;
+		}
+		
+		Block( T* copy ){
+			for( unsigned i=0; i<DCTSIZE*DCTSIZE; i++ )
+				items[i] = copy[i];
+		}
+		
+		      T* operator[]( int y )      { return items + y*DCTSIZE; }
+		const T* operator[]( int y ) const{ return items + y*DCTSIZE; }
+};
+
+using QuantBlock = Block<uint16_t>;
+
+class JpegBlock{
+	private:
+		Block<int16_t> table;
+		
+		double scale( int ix, int iy ) const
+			{ return 2 * 2 * 4 * (ix==0?sqrt(2):1) * (iy==0?sqrt(2):1); }
+			//NOTE: 4 is defined by JPEG, 2 is from FFTW, last 2???
+		
+		
+	public:
+		JpegBlock() : table( 1 ) { }
+		JpegBlock( int16_t* input ) : table( input ) { }
+		
+		void fillDctPlane( Overmix::DctPlane& dct, const QuantBlock& quant ) const;
+};
+
+using PlaneJpegBlock = Overmix::PlaneBase<JpegBlock>;
+
+class JpegPlane : public PlaneJpegBlock{
+	public:
+		QuantBlock quant;
+	
+	public:
+		JpegPlane( QuantBlock quant )
+			:	PlaneJpegBlock(),     quant(quant) { }
+		JpegPlane( Overmix::Size<unsigned> size, QuantBlock quant )
+			:	PlaneJpegBlock(size), quant(quant) { }
+		
+		Overmix::PlaneBase<uint8_t> toPlane() const;
+};
+
+class JpegImage{
+	public:
+		std::vector<JpegPlane> planes;
+};
+
+JpegImage from_jpeg( QIODevice& dev );
 
 }
 
