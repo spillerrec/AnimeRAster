@@ -66,8 +66,21 @@ class JpegDecompress{
 		void readHeader( bool what=true )
 			{ jpeg_read_header( &cinfo, what ); }
 		
-		int components() const{ return cinfo.output_components; }
-		JpegComponent operator[](int i){ return { cinfo.comp_info[i] }; }
+		int components() const{ return cinfo.num_components; }
+		JpegComponent operator[](int i) const{ return { cinfo.comp_info[i] }; }
+		
+		Size<unsigned> imageSize() const
+			{ return { cinfo.image_width, cinfo.image_height }; }
+		
+		Size<int> maxSampling() const{
+			Size<int> out{ 1, 1 };
+			for( int i=0; i<components(); i++ )
+				out = out.max( (*this)[i].sampling() );
+			return out;
+		}
+		
+		Size<unsigned> blockCount( int channel ) const
+			{ return (imageSize() + DCTSIZE-1) / DCTSIZE * (*this)[channel].sampling() / maxSampling(); }
 };
 
 
@@ -128,18 +141,22 @@ bool AnimeRaster::from_jpeg( QIODevice& dev ){
 	jpeg.cinfo.raw_data_out = true;
 	auto v_ptr = jpeg_read_coefficients( &jpeg.cinfo );
 	
-	JpegBlock quant( (int16_t*)jpeg.cinfo.comp_info[0].quant_table->quantval );
-	DctPlane dct( {DCTSIZE, DCTSIZE} );
-	Plane p( DCTSIZE*40, DCTSIZE*40 );
 	
-	for( unsigned iy=0; iy<40; iy++ ){
-	auto blockarr = jpeg.cinfo.mem->access_virt_barray( (j_common_ptr)&jpeg.cinfo, v_ptr[0], 0, 1, false );
-	for( unsigned j=0; j<40; j++ ){
-		JpegBlock( blockarr[iy][j] ).fillDctPlane( dct, quant );
-		dct.toPlane( p, {DCTSIZE*j,DCTSIZE*iy}, 255 );
+	DctPlane dct( {DCTSIZE, DCTSIZE} );
+	for( int ic=0; ic<jpeg.components(); ic++ ){
+		auto blockarr = jpeg.cinfo.mem->access_virt_barray( (j_common_ptr)&jpeg.cinfo, v_ptr[ic], 0, 1, false );
+		JpegBlock quant( (int16_t*)jpeg.cinfo.comp_info[ic].quant_table->quantval );
+		
+		auto blocks = jpeg.blockCount( ic );
+		
+		Plane p( blocks*DCTSIZE );
+		for( unsigned iy=0; iy<blocks.height(); iy++ )
+			for( unsigned j=0; j<blocks.width(); j++ ){
+				JpegBlock( blockarr[iy][j] ).fillDctPlane( dct, quant );
+				dct.toPlane( p, {DCTSIZE*j,DCTSIZE*iy}, 255 );
+			}
+		planeToQImage( p ).save( "test" + QString::number(ic) + ".png" );
 	}
-	}
-	planeToQImage( p ).save( "test.png" );
 	return false;
 	
 	return true;
