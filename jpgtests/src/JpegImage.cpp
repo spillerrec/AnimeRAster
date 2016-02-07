@@ -22,8 +22,10 @@
 #include <jpeglib.h>
 
 #include "Geometry.hpp"
+#include "planes/FourierPlane.hpp"
 
 #include <QIODevice>
+#include <QImage>
 #include <QDebug>
 
 #include <vector>
@@ -69,23 +71,75 @@ class JpegDecompress{
 };
 
 
+class JpegBlock{
+	private:
+		PlaneBase<int16_t> table; //TODO: type?
+		
+		double scale( int ix, int iy ) const
+			{ return 2 * 2 * 4 * (ix==0?sqrt(2):1) * (iy==0?sqrt(2):1); }
+			//NOTE: 4 is defined by JPEG, 2 is from FFTW, last 2???
+		
+		
+	public:
+		JpegBlock();
+		JpegBlock( int16_t* input );
+		
+		void fillDctPlane( DctPlane& dct, const JpegBlock& quant ) const;
+};
+
+JpegBlock::JpegBlock() : table( DCTSIZE, DCTSIZE ) { table.fill( 1 ); }
+JpegBlock::JpegBlock( int16_t* input ) : table( DCTSIZE, DCTSIZE ) {
+	for( unsigned iy=0; iy<DCTSIZE; iy++ ){
+		auto row = table.scan_line( iy );
+		for( unsigned ix=0; ix<DCTSIZE; ix++ )
+			row[ix] = input[iy*DCTSIZE + ix];
+	}
+}
+
+void JpegBlock::fillDctPlane( DctPlane& dct, const JpegBlock& quant ) const{
+		for( unsigned iy=0; iy<DCTSIZE; iy++ ){
+		auto in  = table.scan_line( iy );
+		auto out = dct  .scan_line( iy );
+		auto q   = quant.table.scan_line( iy );
+		for( unsigned ix=0; ix<DCTSIZE; ix++ )
+			out[ix] = in[ix] * q[ix] * scale( ix, iy );
+	}
+}
+
+QImage planeToQImage( const PlaneBase<uint8_t>& p ){
+	QImage out( p.get_width(), p.get_height(), QImage::Format_RGB32 );
+	out.fill( qRgb(0,0,0) );
+	
+	for( int iy=0; iy<out.height(); iy++ ){
+		auto out_row = (QRgb*)out.scanLine( iy );
+		auto in      = p.scan_line( iy );
+		for( int ix=0; ix<out.width(); ix++ )
+			out_row[ix] = qRgb( in[ix], in[ix], in[ix] );
+	}
+	
+	return out;
+}
+
 bool AnimeRaster::from_jpeg( QIODevice& dev ){
 	JpegDecompress jpeg;
 	jpeg.setDevice( dev );
 	jpeg.readHeader();
 	
 	jpeg.cinfo.raw_data_out = true;
-	
-	
 	auto v_ptr = jpeg_read_coefficients( &jpeg.cinfo );
+	
+	JpegBlock quant( (int16_t*)jpeg.cinfo.comp_info[0].quant_table->quantval );
+	DctPlane dct( {DCTSIZE, DCTSIZE} );
+	Plane p( DCTSIZE*40, DCTSIZE*40 );
+	
+	for( unsigned iy=0; iy<40; iy++ ){
 	auto blockarr = jpeg.cinfo.mem->access_virt_barray( (j_common_ptr)&jpeg.cinfo, v_ptr[0], 0, 1, false );
-	for( unsigned j=0; j<1; j++ ){
-		auto block = blockarr[0][j];
-		QString out;
-		for( unsigned i=0; i<64; i++ )
-			out += QString::number( block[i] ) + " ";
-		qDebug() << out;
+	for( unsigned j=0; j<40; j++ ){
+		JpegBlock( blockarr[iy][j] ).fillDctPlane( dct, quant );
+		dct.toPlane( p, {DCTSIZE*j,DCTSIZE*iy}, 255 );
 	}
+	}
+	planeToQImage( p ).save( "test.png" );
 	return false;
 	
 	return true;
