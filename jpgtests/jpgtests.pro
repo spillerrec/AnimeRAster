@@ -2,15 +2,20 @@ TEMPLATE = app
 CONFIG += console
 TARGET = jpgtests
 QMAKE_CXXFLAGS += -std=c++14
-LIBS += -lz -llzma -lfftw3-3
+LIBS += -lz -llzma -lfftw3-3 -ljpeg
 
 
 # Plane stuff adapted from Overmix
 HEADERS += src/planes/FourierPlane.hpp src/planes/PlaneBase.hpp src/Geometry.hpp
 SOURCES += src/planes/FourierPlane.cpp
 
+# Gwenview jpeg reader stuff
+HEADERS += src/gwenview/iodevicejpegsourcemanager.h
+SOURCES += src/gwenview/iodevicejpegsourcemanager.cpp
 
-SOURCES += src/main.cpp
+# Core code
+HEADERS += src/JpegImage.hpp
+SOURCES += src/JpegImage.cpp src/main.cpp
 
 
 # Generate both debug and release on Linux (disabled)

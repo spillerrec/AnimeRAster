@@ -61,13 +61,6 @@ class FourierPlane : public PlaneBase<std::complex<double>>{
 		Plane toPlane() const{
 			return FourierPlane( *this ).toPlaneInvalidate();
 		}
-		
-		void debugResolution( std::string path ) const;
-		
-		FourierPlane reduce( unsigned w, unsigned h ) const;
-		void remove( unsigned w, unsigned h );
-		
-		void blur( double dev_x, double dev_y );
 };
 
 class DctPlane : public PlaneBase<double>{

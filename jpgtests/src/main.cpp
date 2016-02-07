@@ -22,6 +22,8 @@
 #include <QImage>
 #include <QDebug>
 
+#include "JpegImage.hpp"
+
 using namespace std;
 
 
@@ -31,8 +33,13 @@ int main( int argc, char* argv[] ){
 	QStringList files = app.arguments();
 	files.pop_front();
 	
-	for( auto file : files ){
-		qDebug() << file;
+	for( auto filepath : files ){
+		qDebug() << filepath;
+		QFile file( filepath );
+		if( !file.open( QIODevice::ReadOnly ) )
+			return -1;
+		
+		AnimeRaster::from_jpeg( file );
 	}
 	
 	return 0;
