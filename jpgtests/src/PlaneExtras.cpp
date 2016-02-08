@@ -29,7 +29,7 @@ Plane AnimeRaster::normalized( const CoeffPlane& plane ){
 	
 	for( unsigned iy=0; iy<out.get_height(); iy++ )
 		for( unsigned ix=0; ix<out.get_width(); ix++ )
-			out.scan_line(iy)[ix] = color::fromDouble( (plane.scan_line(iy)[ix] - min) / (max-min) );
+			out.scan_line(iy)[ix] = color::fromDouble( (plane.scan_line(iy)[ix] - min) / double(max-min) );
 	
 	return out;
 }

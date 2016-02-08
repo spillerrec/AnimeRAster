@@ -14,8 +14,8 @@ HEADERS += src/gwenview/iodevicejpegsourcemanager.h
 SOURCES += src/gwenview/iodevicejpegsourcemanager.cpp
 
 # Core code
-HEADERS += src/JpegImage.hpp src/PlaneExtras.hpp
-SOURCES += src/JpegImage.cpp src/PlaneExtras.cpp src/main.cpp
+HEADERS += src/JpegImage.hpp src/PlaneExtras.hpp src/Converters.hpp
+SOURCES += src/JpegImage.cpp src/PlaneExtras.cpp src/Converters.cpp src/main.cpp
 
 
 # Generate both debug and release on Linux (disabled)

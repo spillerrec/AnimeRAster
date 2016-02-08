@@ -63,6 +63,9 @@ class JpegBlock{
 		JpegBlock( int16_t* input ) : table( input ) { }
 		
 		void fillDctPlane( Overmix::DctPlane& dct, const QuantBlock& quant ) const;
+		
+		      int16_t* operator[]( int y )      { return table[y]; }
+		const int16_t* operator[]( int y ) const{ return table[y]; }
 };
 
 using PlaneJpegBlock = Overmix::PlaneBase<JpegBlock>;
