@@ -21,16 +21,10 @@
 #include <cmath>
 #include <QDebug>
 
+#include "../PlaneExtras.hpp"
+
 using namespace std;
 using namespace Overmix;
-
-namespace color{
-	double asDouble( uint8_t val ){ return val / 255.0; }
-	uint8_t fromDouble( double val ){
-		auto truncated = val>1.0 ? 1.0 : ( val<0.0 ? 0.0 : val );
-		return truncated * 255.0;
-	}
-}
 
 
 FourierPlane::FourierPlane( const Plane& p, double range )

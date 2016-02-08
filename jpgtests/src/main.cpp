@@ -23,23 +23,10 @@
 #include <QDebug>
 
 #include "JpegImage.hpp"
+#include "PlaneExtras.hpp"
 
 using namespace std;
 
-
-QImage planeToQImage( const Overmix::PlaneBase<uint8_t>& p ){
-	QImage out( p.get_width(), p.get_height(), QImage::Format_RGB32 );
-	out.fill( qRgb(0,0,0) );
-	
-	for( int iy=0; iy<out.height(); iy++ ){
-		auto out_row = (QRgb*)out.scanLine( iy );
-		auto in      = p.scan_line( iy );
-		for( int ix=0; ix<out.width(); ix++ )
-			out_row[ix] = qRgb( in[ix], in[ix], in[ix] );
-	}
-	
-	return out;
-}
 
 int main( int argc, char* argv[] ){
 	QCoreApplication app( argc, argv );
@@ -56,7 +43,7 @@ int main( int argc, char* argv[] ){
 		auto img = AnimeRaster::from_jpeg( file );
 		
 		for( unsigned i=0; i<img.planes.size(); i++ )
-			planeToQImage( img.planes[i].toPlane() ).save( "test" + QString::number(i) + ".png" );
+			AnimeRaster::planeToQImage( img.planes[i].toPlane() ).save( "test" + QString::number(i) + ".png" );
 	}
 	
 	return 0;
