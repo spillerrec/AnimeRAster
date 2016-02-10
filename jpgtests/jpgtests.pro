@@ -14,8 +14,18 @@ HEADERS += src/gwenview/iodevicejpegsourcemanager.h
 SOURCES += src/gwenview/iodevicejpegsourcemanager.cpp
 
 # Core code
-HEADERS += src/JpegImage.hpp src/PlaneExtras.hpp src/Converters.hpp
-SOURCES += src/JpegImage.cpp src/PlaneExtras.cpp src/Converters.cpp src/main.cpp
+HEADERS += src/JpegImage.hpp src/PlaneExtras.hpp src/Converters.hpp src/Encoders.hpp
+SOURCES += src/JpegImage.cpp src/PlaneExtras.cpp src/Converters.cpp src/Encoders.cpp src/main.cpp
+
+
+# Compression code from main lib
+HEADERS += ../lib/src/transform.hpp
+SOURCES += ../lib/src/transform.cpp
+win32{
+	# libzpaq
+	HEADERS += ../lib/src/zpaq/libzpaq.h
+	SOURCES += ../lib/src/zpaq/libzpaq.cpp
+}
 
 
 # Generate both debug and release on Linux (disabled)

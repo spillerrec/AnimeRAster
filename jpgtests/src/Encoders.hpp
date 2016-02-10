@@ -15,21 +15,17 @@
 	along with AnimeRaster.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef CONVERTERS_HPP
-#define CONVERTERS_HPP
-
-#include "PlaneExtras.hpp"
+#ifndef ENCODERS_HPP
+#define ENCODERS_HPP
 
 #include <vector>
+#include <stdint.h>
 
 namespace AnimeRaster{
-
-class JpegPlane;
+	
 class JpegImage;
 
-CoeffPlane coeffsFromOffset( const JpegPlane& p, Overmix::Point<unsigned> offset );
-
-std::vector<int> linearizePlane( const CoeffPlane& plane );
+std::vector<uint8_t> simpleJpegEncode( const JpegImage& );
 
 }
 

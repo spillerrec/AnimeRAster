@@ -25,6 +25,9 @@
 #include "Converters.hpp"
 #include "JpegImage.hpp"
 #include "PlaneExtras.hpp"
+#include "Encoders.hpp"
+
+
 
 using namespace std;
 using namespace AnimeRaster;
@@ -47,9 +50,15 @@ int main( int argc, char* argv[] ){
 		for( unsigned i=0; i<img.planes.size(); i++ ){
 			planeToQImage( img.planes[i].toPlane() ).save( "test" + QString::number(i) + ".png" );
 		}
-		for( unsigned iy=0; iy<8; iy++ )
-			for( unsigned ix=0; ix<8; ix++ )
+		for( unsigned iy=0; iy<1; iy++ )
+			for( unsigned ix=0; ix<1; ix++ )
 				planeToQImage( normalized( coeffsFromOffset( img.planes[0], {ix,iy} ) ) ).save( "coeff" + QString::number(ix)+ "x" + QString::number(iy) + ".png" );
+		
+		auto data = simpleJpegEncode( img );
+		QFile outfile( "compressed.bin" );
+		if( !outfile.open( QIODevice::WriteOnly ) )
+			return -1;
+		outfile.write( (const char*)data.data(), data.size() );
 	}
 	
 	return 0;

@@ -15,29 +15,35 @@
 	along with AnimeRaster.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "Converters.hpp"
+#include "Encoders.hpp"
+#include "../../lib/src/transform.hpp"
 
 #include "JpegImage.hpp"
+#include "Converters.hpp"
 
 using namespace AnimeRaster;
 
-CoeffPlane AnimeRaster::coeffsFromOffset( const JpegPlane& p, Overmix::Point<unsigned> offset ){
-	CoeffPlane out( p.getSize() );
-	
-	for( unsigned iy=0; iy<p.get_height(); iy++ )
-		for( unsigned ix=0; ix<p.get_width(); ix++ )
-			out.scan_line(iy)[ix] = p.scan_line(iy)[ix][offset.y][offset.x];
-	
-	return out;
+void combine( std::vector<uint8_t>& output, const std::vector<uint8_t>& add ){
+	for( auto val : add )
+		output.push_back( val );
 }
 
-std::vector<int> AnimeRaster::linearizePlane( const CoeffPlane& plane ){
-	std::vector<int> out( plane.get_width() * plane.get_height() );
+std::vector<uint8_t> simplePlaneEncode( const JpegPlane& p ){
+	std::vector<uint8_t> output;
 	
-	for( unsigned iy=0; iy<plane.get_height(); iy++ )
-		for( unsigned ix=0; ix<plane.get_width(); ix++ )
-			out[ix + iy*plane.get_width()] = plane.scan_line(iy)[ix];
+	for( unsigned ix=0; ix<8; ix++ )
+		for( unsigned iy=0; iy<8; iy++ )
+			combine( output, packTo16bit( linearizePlane( coeffsFromOffset( p, {ix,iy} ) ) ) );
 	
-	return out;
+	return output;
+}
+
+std::vector<uint8_t> AnimeRaster::simpleJpegEncode( const JpegImage& img ){
+	std::vector<uint8_t> output;
+	
+	for( auto& plane : img.planes )
+		combine( output, simplePlaneEncode( plane ) );
+	
+	return lzmaCompress( output );
 }
 
