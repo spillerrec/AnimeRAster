@@ -14,7 +14,7 @@ HEADERS += src/gwenview/iodevicejpegsourcemanager.h
 SOURCES += src/gwenview/iodevicejpegsourcemanager.cpp
 
 # Core code
-HEADERS += src/JpegImage.hpp src/PlaneExtras.hpp src/Converters.hpp src/Encoders.hpp
+HEADERS += src/JpegImage.hpp src/PlaneExtras.hpp src/Converters.hpp src/Encoders.hpp src/CsvFile.hpp
 SOURCES += src/JpegImage.cpp src/PlaneExtras.cpp src/Converters.cpp src/Encoders.cpp src/main.cpp
 
 

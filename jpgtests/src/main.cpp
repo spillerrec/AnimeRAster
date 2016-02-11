@@ -26,8 +26,7 @@
 #include "JpegImage.hpp"
 #include "PlaneExtras.hpp"
 #include "Encoders.hpp"
-
-
+#include "CsvFile.hpp"
 
 using namespace std;
 using namespace AnimeRaster;
@@ -38,6 +37,9 @@ int main( int argc, char* argv[] ){
 	
 	QStringList files = app.arguments();
 	files.pop_front();
+	
+	CsvFile csv( "results.csv" );
+	csv.addLine( "File", "Jpg-size", "Compressed size" );
 	
 	for( auto filepath : files ){
 		qDebug() << filepath;
@@ -59,6 +61,8 @@ int main( int argc, char* argv[] ){
 		if( !outfile.open( QIODevice::WriteOnly ) )
 			return -1;
 		outfile.write( (const char*)data.data(), data.size() );
+		
+		csv.addLine( filepath.toUtf8().constData(), file.size(), data.size() );
 	}
 	
 	return 0;
