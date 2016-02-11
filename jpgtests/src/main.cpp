@@ -31,12 +31,23 @@
 using namespace std;
 using namespace AnimeRaster;
 
+QStringList expandFolders( QString dir, QStringList files, const QStringList& filters ){
+	QStringList out;
+	for( auto file : files )
+		if( QFileInfo( file ).isDir() )
+			out << expandFolders( file, QDir(file).entryList( filters ), filters );
+		else
+			out << dir + "/" + file;
+	return out;
+}
+
 
 int main( int argc, char* argv[] ){
 	QCoreApplication app( argc, argv );
 	
-	QStringList files = app.arguments();
-	files.pop_front();
+	QStringList args = app.arguments();
+	args.pop_front();
+	auto files = expandFolders( ".", args, {"*.jpg"} );
 	
 	CsvFile csv( "results.csv" );
 	csv.addLine( "File", "Jpg-size", "Compressed size" );
@@ -62,7 +73,7 @@ int main( int argc, char* argv[] ){
 			return -1;
 		outfile.write( (const char*)data.data(), data.size() );
 		
-		csv.addLine( filepath.toUtf8().constData(), file.size(), data.size() );
+		csv.addLine( QFileInfo(filepath).fileName().toUtf8().constData(), file.size(), data.size() );
 	}
 	
 	return 0;
