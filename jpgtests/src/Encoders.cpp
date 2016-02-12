@@ -40,12 +40,27 @@ int trimZeroes( std::vector<uint8_t>& arr ){
 	return arr.size();
 }
 
+CoeffPlane substractLeft( const CoeffPlane& p ){
+	CoeffPlane out( p );
+	for( unsigned iy=0;iy<p.get_height(); iy++ ){
+		auto in = p.scan_line( iy );
+		auto ot = out.scan_line( iy );
+		for( unsigned i=1; i<p.get_width(); i++ )
+			ot[i] = in[i-1] - in[i];
+	}
+	return out;
+}
+
 std::vector<uint8_t> simplePlaneEncode( const JpegPlane& p ){
 	std::vector<uint8_t> sizes;
 	std::vector<uint8_t> output;
+	//TODO: Save quant tables as well...
 	
 	for( auto pos : getZigZagPattern() ){
-		auto data = packTo16bit( linearizePlane( coeffsFromOffset( p, pos ) ) );
+		auto coeffs = coeffsFromOffset( p, pos );
+		if( pos.x == 0 && pos.y == 0 )
+			coeffs = substractLeft( coeffs );
+		auto data = packTo16bit( linearizePlane( coeffs ) );
 		combine( sizes, packTo16bit( { trimZeroes( data ) } ) );
 		combine( output, data );
 	}
