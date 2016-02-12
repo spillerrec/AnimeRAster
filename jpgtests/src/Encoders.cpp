@@ -20,6 +20,9 @@
 
 #include "JpegImage.hpp"
 #include "Converters.hpp"
+#include "Converters.hpp"
+
+#include <iostream>
 
 using namespace AnimeRaster;
 
@@ -28,15 +31,27 @@ void combine( std::vector<uint8_t>& output, const std::vector<uint8_t>& add ){
 		output.push_back( val );
 }
 
+int trimZeroes( std::vector<uint8_t>& arr ){
+	int end = arr.size() - 1;
+	for( ; end>0 && arr[end]==0; end-- )
+		;
+	//std::cout << "Reduced: " << arr.size()-1 << " to " << end << std::endl;
+	arr.resize( end + 1 );
+	return arr.size();
+}
+
 std::vector<uint8_t> simplePlaneEncode( const JpegPlane& p ){
+	std::vector<uint8_t> sizes;
 	std::vector<uint8_t> output;
 	
-	for( auto pos : getZigZagPattern() )
-//	for( unsigned ix=0; ix<8; ix++ )
-//		for( unsigned iy=0; iy<8; iy++ )
-			combine( output, packTo16bit( linearizePlane( coeffsFromOffset( p, pos ) ) ) );
+	for( auto pos : getZigZagPattern() ){
+		auto data = packTo16bit( linearizePlane( coeffsFromOffset( p, pos ) ) );
+		combine( sizes, packTo16bit( { trimZeroes( data ) } ) );
+		combine( output, data );
+	}
 	
-	return output;
+	combine( sizes, output );
+	return sizes;
 }
 
 std::vector<uint8_t> AnimeRaster::simpleJpegEncode( const JpegImage& img ){
