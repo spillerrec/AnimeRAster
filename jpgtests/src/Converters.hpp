@@ -27,6 +27,8 @@ namespace AnimeRaster{
 class JpegPlane;
 class JpegImage;
 
+std::vector<Overmix::Point<>> getZigZagPattern();
+
 CoeffPlane coeffsFromOffset( const JpegPlane& p, Overmix::Point<unsigned> offset );
 
 std::vector<int> linearizePlane( const CoeffPlane& plane );

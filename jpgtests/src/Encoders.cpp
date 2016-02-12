@@ -31,9 +31,10 @@ void combine( std::vector<uint8_t>& output, const std::vector<uint8_t>& add ){
 std::vector<uint8_t> simplePlaneEncode( const JpegPlane& p ){
 	std::vector<uint8_t> output;
 	
-	for( unsigned ix=0; ix<8; ix++ )
-		for( unsigned iy=0; iy<8; iy++ )
-			combine( output, packTo16bit( linearizePlane( coeffsFromOffset( p, {ix,iy} ) ) ) );
+	for( auto pos : getZigZagPattern() )
+//	for( unsigned ix=0; ix<8; ix++ )
+//		for( unsigned iy=0; iy<8; iy++ )
+			combine( output, packTo16bit( linearizePlane( coeffsFromOffset( p, pos ) ) ) );
 	
 	return output;
 }
