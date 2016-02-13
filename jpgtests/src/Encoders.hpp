@@ -25,7 +25,8 @@ namespace AnimeRaster{
 	
 class JpegImage;
 
-std::vector<uint8_t> simpleJpegEncode( const JpegImage& );
+std::vector<uint8_t> planarJpegEncode( const JpegImage& );
+std::vector<uint8_t> interleavedJpegEncode( const JpegImage& );
 
 }
 

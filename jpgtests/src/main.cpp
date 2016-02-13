@@ -50,7 +50,7 @@ int main( int argc, char* argv[] ){
 	auto files = expandFolders( ".", args, {"*.jpg"} );
 	
 	CsvFile csv( "results.csv" );
-	csv.addLine( "File", "Jpg-size", "Compressed size" );
+	csv.addLine( "File", "Jpg-size", "interleaved", "planar", "best" );
 	
 	for( auto filepath : files ){
 		qDebug() << filepath;
@@ -67,13 +67,16 @@ int main( int argc, char* argv[] ){
 			for( unsigned ix=0; ix<1; ix++ )
 				planeToQImage( normalized( coeffsFromOffset( img.planes[0], {ix,iy} ) ) ).save( "coeff" + QString::number(ix)+ "x" + QString::number(iy) + ".png" );
 		
-		auto data = simpleJpegEncode( img );
+		auto data1 = interleavedJpegEncode( img );
+		auto data2 = planarJpegEncode( img );
+		auto data = (data1.size()<data2.size()) ? data1 : data2;
+		
 		QFile outfile( "compressed.bin" );
 		if( !outfile.open( QIODevice::WriteOnly ) )
 			return -1;
 		outfile.write( (const char*)data.data(), data.size() );
 		
-		csv.addLine( QFileInfo(filepath).fileName().toUtf8().constData(), file.size(), data.size() );
+		csv.addLine( QFileInfo(filepath).fileName().toUtf8().constData(), file.size(), data1.size(), data2.size(), data.size() );
 	}
 	
 	return 0;

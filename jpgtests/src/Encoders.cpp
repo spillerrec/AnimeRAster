@@ -51,30 +51,52 @@ CoeffPlane substractLeft( const CoeffPlane& p ){
 	return out;
 }
 
-std::vector<uint8_t> simplePlaneEncode( const JpegPlane& p ){
-	std::vector<uint8_t> sizes;
-	std::vector<uint8_t> output;
-	//TODO: Save quant tables as well...
+std::vector<CoeffPlane> transformPlanes( const JpegPlane& p ){
+	std::vector<CoeffPlane> out;
 	
 	for( auto pos : getZigZagPattern() ){
 		auto coeffs = coeffsFromOffset( p, pos );
 		if( pos.x == 0 && pos.y == 0 )
 			coeffs = substractLeft( coeffs );
-		auto data = packTo16bit( linearizePlane( coeffs ) );
-		combine( sizes, packTo16bit( { trimZeroes( data ) } ) );
-		combine( output, data );
+		out.push_back( coeffs );
 	}
 	
-	combine( sizes, output );
-	return sizes;
+	return out;
 }
 
-std::vector<uint8_t> AnimeRaster::simpleJpegEncode( const JpegImage& img ){
-	std::vector<uint8_t> output;
+void encodeCoeffs( const CoeffPlane& p, std::vector<uint8_t>& info, std::vector<uint8_t>& bulk ){
+	auto data = packTo16bit( linearizePlane( p ) );
+	auto count = trimZeroes( data );
+	combine( info, packTo16bit( { count } ) );
+	combine( bulk, data );
+}
+
+std::vector<uint8_t> AnimeRaster::interleavedJpegEncode( const JpegImage& img ){
+	std::vector<uint8_t> info;
+	std::vector<uint8_t> bulk;
+	//TODO: Quant-tables
+	
+	std::vector<std::vector<CoeffPlane>> data;
+	for( auto& p : img.planes )
+		data.push_back( transformPlanes( p ) );
+	
+	for( unsigned ic=0; ic<data[0].size(); ic++ )
+		for( unsigned ip=0; ip<data.size(); ip++ )
+			encodeCoeffs( data[ip][ic], info, bulk );
+	
+	combine( info, bulk );
+	return lzmaCompress( info );
+}
+
+std::vector<uint8_t> AnimeRaster::planarJpegEncode( const JpegImage& img ){
+	std::vector<uint8_t> info;
+	std::vector<uint8_t> bulk;
+	//TODO: Quant-tables
 	
 	for( auto& plane : img.planes )
-		combine( output, simplePlaneEncode( plane ) );
+		for( auto coeffs : transformPlanes( plane ) )
+			encodeCoeffs( coeffs, info, bulk );
+	combine( info, bulk );
 	
-	return lzmaCompress( output );
+	return lzmaCompress( info );
 }
-
