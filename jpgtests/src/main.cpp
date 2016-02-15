@@ -50,7 +50,7 @@ int main( int argc, char* argv[] ){
 	auto files = expandFolders( ".", args, {"*.jpg"} );
 	
 	CsvFile csv( "results.csv" );
-	csv.addLine( "File", "Jpg-size", "interleaved", "planar", "best" );
+	csv.addLine( "File", "Jpg-size", "block", "planar", "best" );
 	
 	for( auto filepath : files ){
 		qDebug() << filepath;
@@ -59,15 +59,15 @@ int main( int argc, char* argv[] ){
 			return -1;
 		
 		auto img = from_jpeg( file );
-		
+		/*
 		for( unsigned i=0; i<img.planes.size(); i++ ){
 			planeToQImage( img.planes[i].toPlane() ).save( "test" + QString::number(i) + ".png" );
 		}
 		for( unsigned iy=0; iy<1; iy++ )
 			for( unsigned ix=0; ix<1; ix++ )
 				planeToQImage( normalized( coeffsFromOffset( img.planes[0], {ix,iy} ) ) ).save( "coeff" + QString::number(ix)+ "x" + QString::number(iy) + ".png" );
-		
-		auto data1 = interleavedJpegEncode( img );
+		*/
+		auto data1 = blockJpegEncode( img );
 		auto data2 = planarJpegEncode( img );
 		auto data = (data1.size()<data2.size()) ? data1 : data2;
 		

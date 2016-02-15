@@ -27,6 +27,7 @@ class JpegImage;
 
 std::vector<uint8_t> planarJpegEncode( const JpegImage& );
 std::vector<uint8_t> interleavedJpegEncode( const JpegImage& );
+std::vector<uint8_t> blockJpegEncode( const JpegImage& );
 
 }
 
