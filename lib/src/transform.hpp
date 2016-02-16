@@ -36,6 +36,23 @@ std::vector<uint8_t> lzmaCompress( const std::vector<uint8_t>& in );
 std::vector<uint8_t> zpaqDecompress( const std::vector<uint8_t>& in );
 std::vector<uint8_t> zpaqCompress( const std::vector<uint8_t>& in );
 
+template<typename T>
+std::vector<T>& operator+=( std::vector<T>& left, const T& add ){
+	left.push_back( add );
+	return left;
+}
+
+template<typename T>
+std::vector<T>& operator+=( std::vector<T>& left, const std::vector<T>& add ){
+	for( auto& val : add )
+		left += val;
+	return left;
+}
+
+template<typename T>
+std::vector<T> operator+( std::vector<T> left, const std::vector<T>& add )
+	{ return left += add; }
+
 struct Statistics{
 	int min{ INT_MAX };
 	int max{ INT_MIN };
@@ -53,6 +70,8 @@ std::vector<int> offsetData( const std::vector<int>& in, int offset );
 std::vector<int> offsetData( const std::vector<int>& data, const std::vector<int>& offsets );
 
 std::vector<int> invertData( const std::vector<int>& data );
+
+std::vector<int> interleavedNegativeData( const std::vector<int>& data );
 
 
 class Remap{

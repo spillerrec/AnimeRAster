@@ -26,11 +26,6 @@
 
 using namespace AnimeRaster;
 
-void combine( std::vector<uint8_t>& output, const std::vector<uint8_t>& add ){
-	for( auto val : add )
-		output.push_back( val );
-}
-
 int trimZeroes( std::vector<uint8_t>& arr ){
 	int end = arr.size() - 1;
 	for( ; end>0 && arr[end]==0; end-- )
@@ -67,8 +62,8 @@ std::vector<CoeffPlane> transformPlanes( const JpegPlane& p ){
 void encodeCoeffs( const CoeffPlane& p, std::vector<uint8_t>& info, std::vector<uint8_t>& bulk ){
 	auto data = packTo16bit( linearizePlane( p ) );
 	auto count = trimZeroes( data );
-	combine( info, packTo16bit( { count } ) );
-	combine( bulk, data );
+	info += packTo16bit( { count } );
+	bulk += data;
 }
 
 template<typename T>
@@ -77,8 +72,7 @@ void encodeBlock( const T& p, std::vector<uint8_t>&, std::vector<uint8_t>& bulk 
 	for( auto pos : getZigZagPattern() )
 		out.push_back( p[pos.x][pos.y] );
 	
-	auto data = packTo16bit( out );
-	combine( bulk, data );
+	bulk += packTo16bit( out );
 }
 
 std::vector<uint8_t> AnimeRaster::interleavedJpegEncode( const JpegImage& img ){
@@ -97,8 +91,7 @@ std::vector<uint8_t> AnimeRaster::interleavedJpegEncode( const JpegImage& img ){
 		for( unsigned ip=0; ip<data.size(); ip++ )
 			encodeCoeffs( data[ip][ic], info, bulk );
 	
-	combine( info, bulk );
-	return lzmaCompress( info );
+	return lzmaCompress( info + bulk );
 }
 
 std::vector<uint8_t> AnimeRaster::planarJpegEncode( const JpegImage& img ){
@@ -112,9 +105,8 @@ std::vector<uint8_t> AnimeRaster::planarJpegEncode( const JpegImage& img ){
 	for( auto& plane : img.planes )
 		for( auto coeffs : transformPlanes( plane ) )
 			encodeCoeffs( coeffs, info, bulk );
-	combine( info, bulk );
 	
-	return lzmaCompress( info );
+	return lzmaCompress( info + bulk );
 }
 
 std::vector<uint8_t> AnimeRaster::blockJpegEncode( const JpegImage& img ){
@@ -129,7 +121,6 @@ std::vector<uint8_t> AnimeRaster::blockJpegEncode( const JpegImage& img ){
 		for( unsigned iy=0; iy<plane.get_height(); iy++ )
 			for( unsigned ix=0; ix<plane.get_width(); ix++ )
 				encodeBlock( plane.scan_line(iy)[ix], info, bulk );
-	combine( info, bulk );
 	
-	return lzmaCompress( info );
+	return lzmaCompress( info + bulk );
 }

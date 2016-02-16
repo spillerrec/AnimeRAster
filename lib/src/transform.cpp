@@ -305,4 +305,14 @@ vector<int> invertData( const vector<int>& in ){
 	return out;
 }
 
+vector<int> interleavedNegativeData( const vector<int>& data ){
+	vector<int> out;
+	out.reserve( data.size() );
+	
+	for( auto val : data )
+		out.emplace_back( val<0 ? val*-2+1 : val*2 );
+	
+	return out;
+}
+
 
