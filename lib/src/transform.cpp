@@ -315,4 +315,28 @@ vector<int> interleavedNegativeData( const vector<int>& data ){
 	return out;
 }
 
+template<typename T>
+unsigned consistentLength( const std::vector<T>& streams ){
+	if( streams.size() == 0 )
+		return 0;
+	
+	auto size = streams[0].size();
+	for( auto& stream : streams )
+		assert( size == stream.size() ); //TODO: how to avoid warning when assert is ignored
+	
+	return size;
+}
+
+std::vector<int> interleaveStreams( const std::vector<std::vector<int>>& streams ){
+	auto size = consistentLength( streams );
+	std::vector<int> out;
+	out.reserve( size * streams.size() );
+	
+	for( unsigned i=0; i<size; i++ )
+		for( unsigned j=0; j<streams.size(); j++ )
+			out.push_back( streams[j][i] );
+	
+	return out;
+}
+
 

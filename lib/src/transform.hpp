@@ -72,6 +72,7 @@ std::vector<int> offsetData( const std::vector<int>& data, const std::vector<int
 std::vector<int> invertData( const std::vector<int>& data );
 
 std::vector<int> interleavedNegativeData( const std::vector<int>& data );
+std::vector<int> interleaveStreams( const std::vector<std::vector<int>>& data );
 
 
 class Remap{
