@@ -41,6 +41,14 @@ QStringList expandFolders( QString dir, QStringList files, const QStringList& fi
 	return out;
 }
 
+static bool writeData( QString filepath, const vector<uint8_t>& data ){
+	QFile outfile( filepath );
+	if( !outfile.open( QIODevice::WriteOnly ) )
+		return false;
+	outfile.write( (const char*)data.data(), data.size() ); //TODO: check if succeded?
+	return true;
+}
+
 
 int main( int argc, char* argv[] ){
 	QCoreApplication app( argc, argv );
@@ -51,6 +59,20 @@ int main( int argc, char* argv[] ){
 	
 	CsvFile csv( "results.csv" );
 	csv.addLine( "File", "Jpg-size", "block", "planar", "best" );
+	
+	/* Multi-image encode
+	vector<JpegImage> imgs;
+	imgs.reserve( files.count() );
+	for( auto filepath : files ){
+		QFile file( filepath );
+		if( !file.open( QIODevice::ReadOnly ) )
+			return -1;
+		
+		imgs.push_back( from_jpeg( file ) );
+	}
+	writeData( "multiple.bin", multiJpegEncode( imgs ) );
+	return 0;
+	//*/
 	
 	for( auto filepath : files ){
 		qDebug() << filepath;
@@ -71,10 +93,7 @@ int main( int argc, char* argv[] ){
 		auto data2 = planarJpegEncode( img );
 		auto data = (data1.size()<data2.size()) ? data1 : data2;
 		
-		QFile outfile( "compressed.bin" );
-		if( !outfile.open( QIODevice::WriteOnly ) )
-			return -1;
-		outfile.write( (const char*)data.data(), data.size() );
+		writeData( "compressed.bin", data );
 		
 		csv.addLine( QFileInfo(filepath).fileName().toUtf8().constData(), file.size(), data1.size(), data2.size(), data.size() );
 	}

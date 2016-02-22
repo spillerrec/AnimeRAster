@@ -124,3 +124,20 @@ std::vector<uint8_t> AnimeRaster::blockJpegEncode( const JpegImage& img ){
 	
 	return lzmaCompress( info + bulk );
 }
+
+std::vector<uint8_t> AnimeRaster::multiJpegEncode( const std::vector<JpegImage>& images ){
+	std::vector<uint8_t> info;
+	std::vector<uint8_t> bulk;
+	
+	//Quant tables
+	for( auto& img : images )
+		for( auto& plane : img.planes )
+			encodeBlock( plane.quant, info, bulk );
+	
+	for( auto& img : images )
+		for( auto& plane : img.planes )
+			for( auto coeffs : transformPlanes( plane ) )
+				encodeCoeffs( coeffs, info, bulk );
+	
+	return lzmaCompress( info + bulk );
+}
