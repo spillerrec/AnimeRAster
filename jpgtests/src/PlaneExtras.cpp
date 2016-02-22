@@ -24,8 +24,8 @@ using namespace AnimeRaster;
 Plane AnimeRaster::normalized( const CoeffPlane& plane ){
 	Plane out( plane.getSize() );
 	
-	auto max = maxPlaneValue( plane );
-	auto min = minPlaneValue( plane );
+	auto max = std::max( std::abs(maxPlaneValue( plane )), std::abs(minPlaneValue( plane )) );
+	auto min = -max;
 	
 	for( unsigned iy=0; iy<out.get_height(); iy++ )
 		for( unsigned ix=0; ix<out.get_width(); ix++ )
