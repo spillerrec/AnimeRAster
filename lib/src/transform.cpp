@@ -22,6 +22,7 @@
 #endif
 #include <lzma.h>
 
+#include <cassert>
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
