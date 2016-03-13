@@ -2,7 +2,12 @@ TEMPLATE = app
 CONFIG += console
 TARGET = jpgtests
 QMAKE_CXXFLAGS += -std=c++14
-LIBS += -lz -llzma -lfftw3-3 -ljpeg
+LIBS += -lz -llzma -ljpeg
+win32{
+	LIBS += -lfftw3-3
+} else {
+	LIBS += -lfftw3
+}
 
 
 # Plane stuff adapted from Overmix
@@ -16,6 +21,10 @@ SOURCES += src/gwenview/iodevicejpegsourcemanager.cpp
 # Core code
 HEADERS += src/JpegImage.hpp src/PlaneExtras.hpp src/Converters.hpp src/Encoders.hpp src/CsvFile.hpp
 SOURCES += src/JpegImage.cpp src/PlaneExtras.cpp src/Converters.cpp src/Encoders.cpp src/main.cpp
+
+#Png convert code
+HEADERS += src/PngImage.hpp
+SOURCES += src/PngImage.cpp
 
 
 # Compression code from main lib
