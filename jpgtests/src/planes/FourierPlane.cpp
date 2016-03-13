@@ -55,7 +55,7 @@ DctPlane::~DctPlane(){
 	fftw_destroy_plan( plan_dct );
 	fftw_destroy_plan( plan_idct );
 }
-void DctPlane::initialize( const Plane& p, Point<unsigned> pos, double range ){
+void DctPlane::initialize( const PlaneBase<double>& p, Point<unsigned> pos, double range ){
 	//Fill data
 	auto size = p.getSize().min( getSize()+pos ) - pos; //Keep inside
 	fill( 0.0 );
@@ -63,7 +63,7 @@ void DctPlane::initialize( const Plane& p, Point<unsigned> pos, double range ){
 		auto row_in  = p.scan_line( iy+pos.y );
 		auto row_out =   scan_line( iy       );
 		for( unsigned ix=0; ix<size.width(); ix++ )
-			row_out[ix] = color::asDouble( row_in[ix+pos.x] ) * range - 128;
+			row_out[ix] = row_in[ix+pos.x] * range - 128;
 	}
 	
 	//Transform

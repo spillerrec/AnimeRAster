@@ -72,7 +72,7 @@ class DctPlane : public PlaneBase<double>{
 		~DctPlane();
 		DctPlane( const DctPlane& ) = delete;
 		
-		void initialize( const Plane& p, Point<unsigned> pos, double range=1.0 );
+		void initialize( const PlaneBase<double>& p, Point<unsigned> pos, double range=1.0 );
 		void toPlane( Plane& p, Point<unsigned> pos, double range=1.0 );
 };
 

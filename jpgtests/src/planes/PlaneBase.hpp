@@ -210,6 +210,15 @@ class PlaneBase{
 			return out;
 		}
 		
+		template<typename T2, typename Func>
+		PlaneBase<T2> to( Func f ) const{
+			PlaneBase<T2> out( getSize() );
+			for( unsigned iy=0; iy<get_height(); iy++ )
+				for( auto rows : makeZipRowIt( out.scan_line(iy), scan_line(iy) ) )
+					rows.first = T2( f( rows.second ) );
+			return out;
+		}
+		
 	//Iterators
 	public:
 		template<typename T1, typename T2>

@@ -21,25 +21,17 @@
 #include "planes/PlaneBase.hpp"
 
 class QImage;
-using QRgb=unsigned;
 
 namespace AnimeRaster{
-	
-struct Color{
-	double x, y, z;
-	Color() : x(0.0), y(0.0), z(0.0) { }
-	Color( double x, double y, double z ) : x(x), y(y), z(z) { }
-	Color( QRgb rgb );
-	Color rgbToYcbcr() const;
-	
-};
 
 class PngImage {
 	public:
-		Overmix::PlaneBase<Color> ycbcr;
+		std::vector<Overmix::PlaneBase<double>> raw;
 	
 	public:
 		PngImage( QImage img );
+		
+		void saveRaw( QString prefix_filename ) const;
 };
 
 }

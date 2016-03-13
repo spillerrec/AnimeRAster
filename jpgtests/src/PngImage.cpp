@@ -17,11 +17,22 @@
 
 #include "PngImage.hpp"
 
+#include "PlaneExtras.hpp"
+
 
 #include <QImage>
 
 using namespace AnimeRaster;
 
+	
+struct Color{
+	double x, y, z;
+	Color() : x(0.0), y(0.0), z(0.0) { }
+	Color( double x, double y, double z ) : x(x), y(y), z(z) { }
+	Color( QRgb rgb );
+	Color rgbToYcbcr() const;
+	
+};
 
 Color::Color( QRgb rgb )
 	:	x( qRed(   rgb ) / 255.0 )
@@ -40,7 +51,11 @@ Color Color::rgbToYcbcr() const{
 	return { y, cb, cr };
 }
 
-PngImage::PngImage( QImage img ) : ycbcr( img.width(), img.height() ){
+PngImage::PngImage( QImage img )
+	:	raw( 3, Overmix::PlaneBase<double>(img.width(), img.height()) )
+{
+	//Convert from RGB to YCbCr
+	Overmix::PlaneBase<Color> ycbcr( img.width(), img.height() );
 	for( unsigned iy=0; iy<ycbcr.get_height(); iy++ ){
 		auto out = ycbcr.scan_line( iy );
 		auto in  = (const QRgb*)img.constScanLine( iy );
@@ -48,13 +63,25 @@ PngImage::PngImage( QImage img ) : ycbcr( img.width(), img.height() ){
 			out[ix] = Color{ in[ix] }.rgbToYcbcr();
 	}
 	
-	QImage test( img );
+	//Split up into seperate components
 	for( unsigned iy=0; iy<ycbcr.get_height(); iy++ ){
-		auto in  = ycbcr.scan_line( iy );
-		auto out = (QRgb*)test.scanLine( iy );
-		for( unsigned ix=0; ix<ycbcr.get_width(); ix++ )
-			out[ix] = qRgb( in[ix].x*255, in[ix].y*255, in[ix].z*255 );
+		auto in = ycbcr.scan_line( iy );
+		auto y  = raw[0].scan_line( iy );
+		auto cr = raw[1].scan_line( iy );
+		auto cb = raw[2].scan_line( iy );
+		
+		for( unsigned ix=0; ix<ycbcr.get_width(); ix++ ){
+			 y[ix] = in[ix].x;
+			cr[ix] = in[ix].y;
+			cb[ix] = in[ix].z;
+		}
 	}
-	test.save( "output.png" );
+}
+	
+void PngImage::saveRaw( QString prefix_filename ) const{
+	for( unsigned i=0; i<raw.size(); i++ ){
+		auto copy = raw[i].to<uint8_t>( [](auto val){ return val*255; } );
+		planeToQImage( copy ).save( prefix_filename + QString::number(i) + ".png" );
+	}
 }
 
