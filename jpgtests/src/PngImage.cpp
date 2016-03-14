@@ -90,7 +90,7 @@ void PngImage::saveRaw( QString prefix_filename ) const{
 JpegPlane PngImage::toPlane( unsigned index ) const{
 	auto& p = raw[index];
 	Overmix::DctPlane dct( {8, 8} );
-	JpegPlane plane( p.getSize()/8, QuantBlock{16} );
+	JpegPlane plane( p.getSize()/8, QuantBlock{1} );
 	
 	for( unsigned iy=0; iy<plane.get_height(); iy++ ){
 		auto out = plane.scan_line( iy );

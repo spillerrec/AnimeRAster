@@ -86,7 +86,7 @@ void JpegBlock::fillFromRaw( const Overmix::PlaneBase<double>& input, Overmix::P
 	for( unsigned iy=0; iy<DCTSIZE; iy++ ){
 		auto in = input.scan_line( pos.y + iy );
 		for( unsigned ix=0; ix<DCTSIZE; ix++ )
-			table[iy][ix] = in[ix] / quant[iy][ix];
+			table[iy][ix] = in[ix] / quant[iy][ix] / scale( ix, iy );
 	}
 }
 
