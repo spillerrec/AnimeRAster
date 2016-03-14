@@ -17,7 +17,9 @@
 
 #include "PngImage.hpp"
 
+#include "planes/FourierPlane.hpp"
 #include "PlaneExtras.hpp"
+#include "JpegImage.hpp"
 
 
 #include <QImage>
@@ -85,3 +87,28 @@ void PngImage::saveRaw( QString prefix_filename ) const{
 	}
 }
 
+JpegPlane PngImage::toPlane( unsigned index ) const{
+	auto& p = raw[index];
+	Overmix::DctPlane dct( {8, 8} );
+	JpegPlane plane( p.getSize()/8, QuantBlock{16} );
+	
+	for( unsigned iy=0; iy<plane.get_height(); iy++ ){
+		auto out = plane.scan_line( iy );
+		for( unsigned ix=0; ix<plane.get_width(); ix++ ){
+			dct.initialize( p, {ix*8, iy*8}, 255 );
+			out[ix].fillFromRaw( dct, {0,0}, plane.quant );
+		}
+	}
+	
+	return plane;
+}
+
+JpegImage PngImage::toImage() const{
+	JpegImage img;
+	
+	img.planes.reserve( raw.size() );
+	for( unsigned i=0; i<raw.size(); i++ )
+		img.planes.push_back( toPlane(i) );
+	
+	return img;
+}

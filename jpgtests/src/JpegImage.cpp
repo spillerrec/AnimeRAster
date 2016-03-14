@@ -82,6 +82,14 @@ class JpegDecompress{
 			{ return (imageSize() + DCTSIZE-1) / DCTSIZE * (*this)[channel].sampling() / maxSampling(); }
 };
 
+void JpegBlock::fillFromRaw( const Overmix::PlaneBase<double>& input, Overmix::Point<unsigned> pos, const QuantBlock& quant ){
+	for( unsigned iy=0; iy<DCTSIZE; iy++ ){
+		auto in = input.scan_line( pos.y + iy );
+		for( unsigned ix=0; ix<DCTSIZE; ix++ )
+			table[iy][ix] = in[ix] / quant[iy][ix];
+	}
+}
+
 void JpegBlock::fillDctPlane( DctPlane& dct, const QuantBlock& quant ) const{
 		for( unsigned iy=0; iy<DCTSIZE; iy++ ){
 		auto out = dct  .scan_line( iy );

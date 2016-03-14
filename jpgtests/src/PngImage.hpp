@@ -32,6 +32,9 @@ class PngImage {
 		PngImage( QImage img );
 		
 		void saveRaw( QString prefix_filename ) const;
+		
+		class JpegPlane toPlane( unsigned index ) const;
+		class JpegImage toImage() const;
 };
 
 }
