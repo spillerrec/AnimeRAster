@@ -19,6 +19,7 @@
 #define PNG_IMAGE_HPP
 
 #include "planes/PlaneBase.hpp"
+#include "JpegImage.hpp"
 
 class QImage;
 
@@ -33,8 +34,8 @@ class PngImage {
 		
 		void saveRaw( QString prefix_filename ) const;
 		
-		class JpegPlane toPlane( unsigned index ) const;
-		class JpegImage toImage() const;
+		class JpegPlane toPlane( unsigned index, QuantBlock quant ) const;
+		class JpegImage toImage( QuantBlock quant ) const;
 };
 
 }

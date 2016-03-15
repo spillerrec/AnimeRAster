@@ -87,10 +87,10 @@ void PngImage::saveRaw( QString prefix_filename ) const{
 	}
 }
 
-JpegPlane PngImage::toPlane( unsigned index ) const{
+JpegPlane PngImage::toPlane( unsigned index, QuantBlock quant ) const{
 	auto& p = raw[index];
 	Overmix::DctPlane dct( {8, 8} );
-	JpegPlane plane( p.getSize()/8, QuantBlock{1} );
+	JpegPlane plane( p.getSize()/8, quant );
 	
 	for( unsigned iy=0; iy<plane.get_height(); iy++ ){
 		auto out = plane.scan_line( iy );
@@ -103,12 +103,12 @@ JpegPlane PngImage::toPlane( unsigned index ) const{
 	return plane;
 }
 
-JpegImage PngImage::toImage() const{
+JpegImage PngImage::toImage( QuantBlock quant ) const{
 	JpegImage img;
 	
 	img.planes.reserve( raw.size() );
 	for( unsigned i=0; i<raw.size(); i++ )
-		img.planes.push_back( toPlane(i) );
+		img.planes.push_back( toPlane(i, quant) );
 	
 	return img;
 }

@@ -24,6 +24,7 @@
 
 #include "Converters.hpp"
 #include "JpegImage.hpp"
+#include "PngImage.hpp"
 #include "PlaneExtras.hpp"
 #include "Encoders.hpp"
 #include "CsvFile.hpp"
@@ -59,6 +60,32 @@ int main( int argc, char* argv[] ){
 	
 	CsvFile csv( "results.csv" );
 	csv.addLine( "File", "Jpg-size", "block", "planar", "best" );
+	
+	
+	QFile file( args[0] );
+	if( !file.open( QIODevice::ReadOnly ) )
+		return -1;
+	auto jpg = from_jpeg( file );
+	for( unsigned i=0; i<jpg.planes.size(); i++ )
+		planeToQImage( jpg.planes[i].toPlane() ).save( "original" + QString::number(i) + ".png" );
+	
+	//* JPEG saved as PNG
+	PngImage png{ QImage(args[0]) };
+	png.saveRaw( "component-" );
+	
+	//Back to JPEG
+	auto img = png.toImage( jpg.planes[0].quant );
+	for( unsigned i=0; i<img.planes.size(); i++ )
+		planeToQImage( img.planes[i].toPlane() ).save( "recompressed" + QString::number(i) + ".png" );
+	
+	for( unsigned iy=0; iy<1; iy++ )
+		for( unsigned ix=0; ix<1; ix++ ){
+			planeToQImage( normalized( coeffsFromOffset( jpg.planes[0], {ix,iy} ) ) ).save( "jpg-coeff" + QString::number(ix)+ "x" + QString::number(iy) + ".png" );
+			planeToQImage( normalized( coeffsFromOffset( img.planes[0], {ix,iy} ) ) ).save( "rec-coeff" + QString::number(ix)+ "x" + QString::number(iy) + ".png" );
+		}
+	
+	return 0;
+	//*/
 	
 	/* Multi-image encode
 	vector<JpegImage> imgs;
