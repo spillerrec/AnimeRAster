@@ -1,7 +1,7 @@
 TEMPLATE = app
 CONFIG += console
 TARGET = jpgtests
-QMAKE_CXXFLAGS += -std=c++14
+CONFIG += c++14
 LIBS += -lz -llzma -ljpeg
 win32{
 	LIBS += -lfftw3-3
