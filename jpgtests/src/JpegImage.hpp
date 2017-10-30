@@ -91,6 +91,8 @@ class JpegImage{
 
 JpegImage from_jpeg( QIODevice& dev );
 
+std::vector<Overmix::PlaneBase<uint8_t>> from_jpeg_decode( QIODevice& dev );
+
 }
 
 #endif

@@ -80,6 +80,13 @@ class JpegDecompress{
 		
 		Size<unsigned> blockCount( int channel ) const
 			{ return (imageSize() + DCTSIZE-1) / DCTSIZE * (*this)[channel].sampling() / maxSampling(); }
+			
+		Size<JDIMENSION> size() const{ return { cinfo.image_width, cinfo.image_height }; }
+		
+		Size<JDIMENSION> sizePadded() const{
+			Size<JDIMENSION> mcu_size( cinfo.max_h_samp_factor*DCTSIZE, cinfo.max_v_samp_factor*DCTSIZE );
+			return (size() + mcu_size-1) / mcu_size * mcu_size;
+		}
 };
 
 void JpegBlock::fillFromRaw( const Overmix::PlaneBase<double>& input, Overmix::Point<unsigned> pos, const QuantBlock& quant ){
@@ -121,6 +128,81 @@ JpegImage AnimeRaster::from_jpeg( QIODevice& dev ){
 	}
 	
 	return img;
+}
+
+
+class RawReader{
+	private:
+		JpegDecompress& jpeg;
+		
+		std::vector<Overmix::PlaneBase<uint8_t>> plane_buf;
+		std::vector<std::vector<uint8_t*>> row_bufs;
+		std::vector<uint8_t**> buf_access;
+		
+		
+	public:
+		RawReader( JpegDecompress& jpeg )
+			: jpeg(jpeg){
+				//Create buffers
+				for( int i=0; i<jpeg.components(); i++ )
+					plane_buf.emplace_back( jpeg[i].sizePadded() );
+				
+				//Create row accesses
+				for( int i=0; i<jpeg.components(); i++ ){
+					row_bufs.emplace_back( plane_buf[i].get_height(), nullptr );
+					for( unsigned iy=0; iy<row_bufs[i].size(); iy++ )
+						row_bufs[i][iy] = plane_buf[i].scan_line( iy ).begin();
+				}
+				
+				//Apply "fake" crop
+				for( int i=0; i<jpeg.components(); i++ )
+					plane_buf[i].crop( {0,0}, jpeg[i].size() );
+			}
+		
+		///Prepare buffer for copy to lines starting from iy
+		void prepare_buffer( int iy ){
+			buf_access.clear();
+			for( unsigned c=0; c<plane_buf.size(); c++ ){
+				auto local_y = iy * jpeg[c].sampling().y / jpeg.cinfo.max_v_samp_factor;
+				buf_access.push_back( row_bufs[c].data() + local_y );
+			}
+		}
+		
+		//Read a set of lines
+		void readLine(){
+			auto maxSize = jpeg.sizePadded();
+			
+			prepare_buffer( jpeg.cinfo.output_scanline );
+			int remaining = maxSize.height() - jpeg.cinfo.output_scanline;
+ 			assert( remaining >= jpeg.cinfo.max_v_samp_factor*DCTSIZE );
+			jpeg_read_raw_data( &jpeg.cinfo, buf_access.data(), remaining );
+			//TODO: chroma is offset of some reason...
+		}
+		
+		auto readAll(){
+			while( jpeg.cinfo.output_scanline < jpeg.cinfo.output_height )
+				readLine();
+			
+			return plane_buf;
+		}
+};
+
+std::vector<Overmix::PlaneBase<uint8_t>> from_jpeg_decode( QIODevice& dev ){
+	JpegImage img;
+	
+	JpegDecompress jpeg;
+	jpeg.setDevice( dev );
+	jpeg.readHeader();
+	
+	jpeg.cinfo.raw_data_out = true;
+	jpeg_start_decompress( &jpeg.cinfo );
+	
+	RawReader reader( jpeg );
+	auto planes = reader.readAll();
+	
+	jpeg_finish_decompress( &jpeg.cinfo );
+	
+	return planes;
 }
 
 PlaneBase<uint8_t> JpegPlane::toPlane() const{
