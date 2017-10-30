@@ -50,19 +50,9 @@ static bool writeData( QString filepath, const vector<uint8_t>& data ){
 	return true;
 }
 
-
-int main( int argc, char* argv[] ){
-	QCoreApplication app( argc, argv );
-	
-	QStringList args = app.arguments();
-	args.pop_front();
-	auto files = expandFolders( ".", args, {"*.jpg"} );
-	
-	CsvFile csv( "results.csv" );
-	csv.addLine( "File", "Jpg-size", "block", "planar", "best" );
-	
-	
-	QFile file( args[0] );
+static int extract_coeffs( QStringList files ){
+	//Save each i,j index of the coeffs as a seperate image
+	QFile file( files[0] );
 	if( !file.open( QIODevice::ReadOnly ) )
 		return -1;
 	auto jpg = from_jpeg( file );
@@ -70,7 +60,7 @@ int main( int argc, char* argv[] ){
 		planeToQImage( jpg.planes[i].toPlane() ).save( "original" + QString::number(i) + ".png" );
 	
 	//* JPEG saved as PNG
-	PngImage png{ QImage(args[0]) };
+	PngImage png{ QImage(files[0]) };
 	png.saveRaw( "component-" );
 	
 	//Back to JPEG
@@ -85,9 +75,11 @@ int main( int argc, char* argv[] ){
 		}
 	
 	return 0;
-	//*/
-	
-	/* Multi-image encode
+}
+
+static int multi_img_encode( QStringList files ){
+	//Encode several jpeg images in one compressed block
+	// Multi-image encode
 	vector<JpegImage> imgs;
 	imgs.reserve( files.count() );
 	for( auto filepath : files ){
@@ -99,7 +91,12 @@ int main( int argc, char* argv[] ){
 	}
 	writeData( "multiple.bin", multiJpegEncode( imgs ) );
 	return 0;
-	//*/
+}
+
+static int single_img_encode( QStringList files ){
+	//Encode each file seperately and do statistics
+	CsvFile csv( "results.csv" );
+	csv.addLine( "File", "Jpg-size", "block", "planar", "best" );
 	
 	for( auto filepath : files ){
 		qDebug() << filepath;
@@ -124,6 +121,23 @@ int main( int argc, char* argv[] ){
 		
 		csv.addLine( QFileInfo(filepath).fileName().toUtf8().constData(), file.size(), data1.size(), data2.size(), data.size() );
 	}
+}
+
+
+int main( int argc, char* argv[] ){
+	QCoreApplication app( argc, argv );
+	
+	//Expand folders and remove all other than .jpg files
+	QStringList args = app.arguments();
+	args.pop_front();
+	auto files = expandFolders( ".", args, {"*.jpg"} );
+	
+	
+	return extract_coeffs( files );
+	//*/
+	return multi_img_encode( files );
+	//*/
+	return single_img_encode( files );
 	
 	return 0;
 }
