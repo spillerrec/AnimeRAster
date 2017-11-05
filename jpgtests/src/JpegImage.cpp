@@ -187,7 +187,7 @@ class RawReader{
 		}
 };
 
-std::vector<Overmix::PlaneBase<uint8_t>> from_jpeg_decode( QIODevice& dev ){
+std::vector<Overmix::PlaneBase<uint8_t>> AnimeRaster::from_jpeg_decode( QIODevice& dev ){
 	JpegImage img;
 	
 	JpegDecompress jpeg;

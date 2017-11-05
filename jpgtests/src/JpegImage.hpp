@@ -20,6 +20,8 @@
 
 #include "planes/PlaneBase.hpp"
 
+#include <vector>
+
 class QIODevice;
 
 namespace Overmix{ class DctPlane; }

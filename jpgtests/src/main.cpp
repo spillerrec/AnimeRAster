@@ -50,12 +50,20 @@ static bool writeData( QString filepath, const vector<uint8_t>& data ){
 	return true;
 }
 
+
+auto load( QString path, auto func ){
+	QFile file( path );
+	if( !file.open( QIODevice::ReadOnly ) ){
+		qDebug() << "Could not open file" << path;
+		std::exit( -1 );
+	}
+	
+	return func( file );
+};
+
 static int extract_coeffs( QStringList files ){
 	//Save each i,j index of the coeffs as a seperate image
-	QFile file( files[0] );
-	if( !file.open( QIODevice::ReadOnly ) )
-		return -1;
-	auto jpg = from_jpeg( file );
+	auto jpg = load( files[0], from_jpeg );
 	for( unsigned i=0; i<jpg.planes.size(); i++ )
 		planeToQImage( jpg.planes[i].toPlane() ).save( "original" + QString::number(i) + ".png" );
 	
@@ -83,11 +91,7 @@ static int multi_img_encode( QStringList files ){
 	vector<JpegImage> imgs;
 	imgs.reserve( files.count() );
 	for( auto filepath : files ){
-		QFile file( filepath );
-		if( !file.open( QIODevice::ReadOnly ) )
-			return -1;
-		
-		imgs.push_back( from_jpeg( file ) );
+		imgs.push_back( load( filepath, from_jpeg ) );
 	}
 	writeData( "multiple.bin", multiJpegEncode( imgs ) );
 	return 0;
@@ -100,11 +104,7 @@ static int single_img_encode( QStringList files ){
 	
 	for( auto filepath : files ){
 		qDebug() << filepath;
-		QFile file( filepath );
-		if( !file.open( QIODevice::ReadOnly ) )
-			return -1;
-		
-		auto img = from_jpeg( file );
+		auto img = load( filepath, from_jpeg );
 		/*
 		for( unsigned i=0; i<img.planes.size(); i++ ){
 			planeToQImage( img.planes[i].toPlane() ).save( "test" + QString::number(i) + ".png" );
@@ -119,8 +119,40 @@ static int single_img_encode( QStringList files ){
 		
 		writeData( "compressed.bin", data );
 		
-		csv.addLine( QFileInfo(filepath).fileName().toUtf8().constData(), file.size(), data1.size(), data2.size(), data.size() );
+		csv.addLine( QFileInfo(filepath).fileName().toUtf8().constData(), QFileInfo( filepath ).size(), data1.size(), data2.size(), data.size() );
 	}
+	
+	return 0;
+}
+
+template<typename T>
+std::pair<int,int> pixel_diff_count( const Overmix::PlaneBase<T>& p1, const Overmix::PlaneBase<T>& p2 ){
+	auto size = p1.getSize().min( p2.getSize() );
+	int count = 0;
+	for( unsigned iy=0; iy<size.height(); iy++ ){
+		auto r1 = p1.scan_line( iy );
+		auto r2 = p2.scan_line( iy );
+		for( unsigned ix=0; ix<size.width(); ix++ ){
+			if( r1[ix] == r2[ix] )
+				count++;
+		}
+	}
+	
+	return { count, size.width() * size.height() };
+}
+
+static int dct_check( QString filepath ){
+	
+	auto coeffs = load( filepath, from_jpeg );
+	auto libjpeg = load( filepath, from_jpeg_decode );
+	planeToQImage( libjpeg[0] ).save( "dct_check_libjpeg.png" );
+	planeToQImage( coeffs.planes[0].toPlane() ).save( "dct_check_overmix.png" );
+	
+	auto spacial_diff = pixel_diff_count( libjpeg[0], coeffs.planes[0].toPlane() );
+	qDebug() << "Difference spartial:" << spacial_diff.first << "/" << spacial_diff.second << "=" << double(spacial_diff.first) / spacial_diff.second * 100 << "%";
+	
+	
+	return 0;
 }
 
 
@@ -132,7 +164,7 @@ int main( int argc, char* argv[] ){
 	args.pop_front();
 	auto files = expandFolders( ".", args, {"*.jpg"} );
 	
-	
+	return dct_check( files[0] );
 	return extract_coeffs( files );
 	//*/
 	return multi_img_encode( files );
