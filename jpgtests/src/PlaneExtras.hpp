@@ -28,7 +28,7 @@ namespace color{
 	inline double asDouble( uint8_t val ){ return val / 255.0; }
 	inline uint8_t fromDouble( double val ){
 		auto truncated = val>1.0 ? 1.0 : ( val<0.0 ? 0.0 : val );
-		return truncated * 255.0;
+		return std::round( truncated * 255.0 );
 	}
 }
 

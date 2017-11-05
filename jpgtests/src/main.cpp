@@ -133,7 +133,7 @@ std::pair<int,int> pixel_diff_count( const Overmix::PlaneBase<T>& p1, const Over
 		auto r1 = p1.scan_line( iy );
 		auto r2 = p2.scan_line( iy );
 		for( unsigned ix=0; ix<size.width(); ix++ ){
-			if( r1[ix] == r2[ix] )
+			if( r1[ix] != r2[ix] )
 				count++;
 		}
 	}
